@@ -1,0 +1,7 @@
+# Local test output and editor files
+__pycache__/
+*.pyc
+.DS_Store
+*.swp
+*~
+node_modules/

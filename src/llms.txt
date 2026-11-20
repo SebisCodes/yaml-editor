@@ -1,0 +1,146 @@
+# YAML Editor (yaml.giit.ch)
+
+> Free YAML editor in the browser, no sign-up, documents kept in the browser. Edit YAML with syntax highlighting next to a foldable tree of the data, change keys and values right in the tree with comments and formatting kept, see problems with line and column, check the data against a JSON Schema, and convert to JSON, CSV or XML.
+
+- Language: English at /, 13 other languages at /de/, /fr/, /it/, /es/, /pt/, /nl/, /pl/, /tr/, /ru/, /uk/, /zh/, /ja/, /ko/
+- Cost: free
+- Data: documents stay in the browser (localStorage) unless the user sets up a webhook to their own server, or a website that embeds the editor receives it (postMessage) and saves it on its own server. A document sent to post.php by a form (viewer) is passed to the browser in memory and not stored on the server. The server logs requests (IP address, address requested), and page views are counted anonymously.
+- YAML 1.2 (the yaml package, ISC, in the browser): several documents with `---`, anchors, aliases and merge keys, comments kept.
+
+## Features
+
+- Code and tree side by side: mappings and sequences fold, every value shows its type (string, number, boolean, null, object, array), `{3}` / `[5]` count the entries, the path of the selected value is shown (`$.items[3].name`), search in keys and values. One tree per document; anchors (`&name`) and aliases (`*name`) are marked.
+- A click in the tree selects that entry in the code; the code cursor marks its value in the tree.
+- Editing in the tree: keys and values (strings, numbers, booleans, null; quoting and block style kept where they fit), the type of a value, entries added, duplicated, moved and removed. Each change is a small edit of the code at that place - the rest keeps its formatting and comments - and one undo step.
+- Problems with line and column: syntax errors, tabs used for indentation, duplicate keys, aliases without their anchor, and - when the user chooses a JSON Schema from their documents - every place that does not fit (type, required, properties, additionalProperties, enum, const, pattern, format, minimum/maximum, minLength/maxLength, items/prefixItems, minItems/maxItems, uniqueItems, allOf/anyOf/oneOf/not, if/then/else, $ref inside the schema). A `$schema` address is never fetched.
+- Format (consistent indentation, comments kept); convert to JSON (several documents become an array), JSON Lines (one line per document, or per entry of the root sequence), CSV (a sequence of mappings is a table) and XML; JSON, JSON Lines (`.jsonl`, `.ndjson`, as a sequence), CSV and XML files open as YAML.
+- Export: .yaml as it is, JSON, CSV, the tree as plain text, or all as ZIP.
+- Templates: Docker Compose, GitHub workflow, Kubernetes (two documents), OpenAPI, table.
+- My documents: any number of documents in the browser - open, rename, duplicate, download and delete.
+- Light, dark or automatic color theme.
+
+## Writing for a user (for AI assistants)
+
+Any AI can put a document into the user's open editor with a link; no server, no API key:
+
+- `https://yaml.giit.ch/#b64=<base64url of the UTF-8 YAML>`
+- `https://yaml.giit.ch/#yaml=<URL-encoded YAML>`
+- `https://yaml.giit.ch/#z=<base64url of the zlib-compressed YAML>` (shorter)
+- Add `&mode=add` to merge YAML into the first document of the current file: the keys of a mapping go into the root mapping (existing keys get the new values, new keys are added at the end), the items of a sequence (or a single value) are added to the root sequence. Only the changed places of the code change; comments stay.
+- Add `&file=new&name=<name>` to make a new document next to the user's others, or `&file=<name>` to change that one. Without `&file=` the open document changes.
+- Long documents: split the encoded text and send one link per part with `&part=N&of=M&id=<name>`.
+
+Open the link in the user's browser if you can, otherwise give it to the user to click. The user can undo every change. In the editor, "AI Assistant" > "Copy prompt" gives the AI these instructions together with the current document, the selected path and the problems.
+
+## Saving on your own server (webhook)
+
+Set under "Save to server" (cloud button), or for one document with `?webhook=<URL>`: only for that one document and only while the page is open - a link never stores a webhook. At the top level the user is asked first; inside a page (iframe or opener) it only works together with `?src=` and only for the document opened with it. On "Save" (Ctrl+S), or automatically a few seconds after each change if chosen, the browser sends:
+
+    POST <webhook URL>
+    Content-Type: application/json
+    Authorization: Bearer <token>        (only if a token is set)
+
+    {"editor":"yaml","event":"save","id":"<document id>","name":"<name>",
+     "content":"<the YAML document as a string>","updated":"<ISO date>"}
+
+`content` is the code exactly as in the editor (a string, with its comments). One request carries at most 40 MB; the server's error text (e.g. for 413) is shown to the user. The server must answer CORS requests from https://yaml.giit.ch (Access-Control-Allow-Origin, and Access-Control-Allow-Headers: Content-Type, Authorization). `?src=<URL>` opens a .yaml file from a URL (CORS needed), `&name=<name>` names it.
+
+## Embedding in a website
+
+A guide for developers with examples, in every language of the editor: [https://yaml.giit.ch/embed/](https://yaml.giit.ch/embed/) (`/<code>/embed/`, e.g. `/de/embed/`). The complete protocol follows here.
+
+    <iframe src="https://yaml.giit.ch/?embed=1" style="width:100%;height:80vh;border:0"></iframe>
+
+Messages (postMessage; check `event.origin === "https://yaml.giit.ch"` and `event.source === iframe.contentWindow`):
+
+- Editor -> page: `{type:"yamleditor:ready", version:2, editor:"yaml", window:false}` when it can take a document.
+- Page -> editor: `{type:"yamleditor:load", name, content}` opens the document (content is the YAML text as a string).
+- Editor -> page: `{type:"yamleditor:loaded", id, name}`, then `{type:"yamleditor:change", id, name, content}` on each edit (not after load), and `{type:"yamleditor:save", id, name, content, editor, event, updated}` when the user clicks Save or presses Ctrl+S.
+- Page -> editor: `{type:"yamleditor:get"}` asks for a `yamleditor:save` message; `{type:"yamleditor:save"}` saves as if the user had clicked Save.
+
+In embedded mode the page text below the editor is hidden and a Save button is shown. The YAML Editor's documents have no files of their own: no message carries `assets`, and `assets` in `load` is ignored. The other giit editors (JSON Editor json.giit.ch with `jsoneditor:`, LaTeX Editor latex.giit.ch with `latexeditor:`, SVG Editor svg.giit.ch with `svgeditor:`) speak the same protocol.
+
+Optional fields of `yamleditor:load`:
+- `tidy: true` - the editor tidies this document as part of the load, as its Tidy / Format button does (`?tidy=1` in the editor's address does it for every document). No `yamleditor:change` is sent for it, `yamleditor:get` returns the tidied code, Undo does not go back before it; code the editor cannot read is loaded as it is.
+- `context: {host, title, rules}` - plain text about the page (rules up to 2000 characters). "Copy prompt" in the AI Assistant then tells the AI that the document belongs to that page and is saved back there, includes the rules, and leaves out how to build a webhook server.
+- `hook: {url, token}` - a webhook (https) for this document only, used on Save in addition to the message; kept in memory only (never stored, gone on reload). If the server answers with an error, its `{"error": "…"}` (or `message`, or a short text) is shown to the user.
+
+AI Assistant in a frame: add `allow="clipboard-write"` to the iframe so "Copy prompt" can use the clipboard (without it the editor falls back to the old copy command or shows the prompt to copy by hand). Links from an AI cannot reach an editor inside another website (the browser keeps its storage and channels apart), so in a frame the prompt and the dialog ask to paste the AI's whole answer into the editor; use the own window (below) if links should work.
+
+`yamleditor:get` is always answered with a `yamleditor:save` message, also when nothing changed.
+
+### All messages at a glance
+
+Editor -> page (sent to the page around the editor, or to window.opener in its own window):
+- `yamleditor:ready` {version:2, editor, window} - can take a document
+- `yamleditor:loaded` {id, name, target?} - after each load; remember the id (target:"new" for a new document from the AI, which is not yours)
+- `yamleditor:change` {id, name, content} - a real edit of your document (not after load)
+- `yamleditor:save` {editor, event, id, name, content, updated} - Save / Ctrl+S (from anywhere in the editor), or the answer to get
+- `yamleditor:closing` {id, name, unsaved, content?} - own window closes (always sent; content only when unsaved, id null before the first load)
+- `yamleditor:reload` {id, unsaved} - inside your page, F5 / Ctrl+R / Cmd+R do not reload the editor; ask the user yourself (Ctrl+W cannot be caught by a page)
+- `yamleditor:key-request` {reason:"missing"} - the editor has no AI key in this session yet
+
+`?embed=1&save=0` hides the editor's Save button (Ctrl+S still sends `yamleditor:save`) - for pages with their own Save button.
+
+`?theme=light`, `?theme=dark` or `?theme=auto` (with or without `embed`) fixes the color theme for that page load and hides the theme switch; the user's own stored choice is not changed. Other values are ignored.
+
+`?lang=de` shows the editor's interface in German (menus, buttons, dialogs, messages), `?lang=en` in English (the default). `/` leads to the browser's language, and a language picked in the menu holds for every giit.ch site. The AI prompt is always English.
+
+Page -> editor (only from the page around the editor or the opener; after its first message only from that origin; pages without a real origin are ignored):
+- `yamleditor:load` {name, content, context?, hook?, ai?, from?, target?} - open your document; from:"ai" shows a note, target:"new" opens it as a separate document in the user's browser
+- `yamleditor:get` - answered with `yamleditor:save` of your document (id and content null before the first load)
+- `yamleditor:save` - press Save
+- `yamleditor:ai` {label?, prompt?, endpoint?, key?, base?} or {clear:true} - AI through your server
+
+Your document is the one your page loaded (or opened with ?src=). change, save, closing and get are only ever about it - never about other documents in the user's browser, also when the user opens them in the editor. A load replaces only a document that came from your page before (same name and origin), never the user's own; the AI settings and the hook from load apply only while your document is open. Your document is kept in memory only - it is never stored in the user's browser and is gone when the editor closes.
+
+### AI through your own server (prompt and session key)
+
+The editor has no backend; your site keeps the keys and the results. Hand the editor your prompt, an endpoint and a key for this editor session - in `yamleditor:load` as `ai: {…}`, or at any time as its own message:
+
+    {type:"yamleditor:ai", label:"Example Admin", prompt:"<your instructions, up to 8000 characters>",
+     endpoint:"https://your-site.com/api/ai-result", key:"<session key>",
+     base:true}
+
+Fields left out keep their value; `{type:"yamleditor:ai", clear:true}` ends it. One key per editor session: once the editor has a key it keeps it until the session ends or `clear`, and does not take a different one. `base:false` leaves out the editor's own instructions. The AI dialog shows "Connected to <label> (<real host>)", what your page tells the AI, and a choice: change the current document (default) or make a new one. "Copy prompt" copies the editor's short instructions, your prompt (fenced, marked with your real host), the current document and how to send the result:
+
+    POST <endpoint>
+    Authorization: Bearer <key>
+    Content-Type: application/json
+    {"editor":"yaml","target":"current"|"new","name":"<short name>","content":"<the complete YAML document as one string>"}
+
+An AI that cannot send HTTP requests answers with a link instead, which the user pastes into the editor. When your server has a result, your page sends `{type:"yamleditor:load", name, content, from:"ai", target}`: target "current" (or none) puts it into your document (the user sees a note; Undo takes it back; it counts as not yet saved), target "new" opens a separate document that stays in the user's browser - its edits and Save never go to your page. The key stays valid in the editor for the whole session; only when it has none at "Copy prompt", the editor sends `{type:"yamleditor:key-request", reason:"missing"}`; answer with a `yamleditor:ai` message within 5 seconds.
+
+Safety built in: key, endpoint and prompt are only taken from the page around the editor (after its first message, only from that origin), kept in memory, never stored and never sent by the editor itself - the key only goes into the prompt the user copies. The endpoint must be https on your page's own host (with or without www.) or a subdomain of it; others are refused. Keys must be 16-512 characters of A-Z a-z 0-9 . _ ~ + / = -.
+
+Your backend should: make keys with at least 128 random bits, store only their hash, bind each key to the logged-in user, the document and this editor session, make exactly one key per session, give it no fixed lifetime but keep it valid only while your open page reports the session (e.g. every minute; void it 3 minutes after the last report), void it when the editor, its window or your page closes and when the user logs out, accept only JSON of a sensible size, keep results as drafts until the user saves in the editor, answer key requests only for the logged-in user, and not send CORS headers on the endpoint (AIs call it from a server or a command line, not from a browser).
+
+### Own window
+
+    const win = window.open("https://yaml.giit.ch/?embed=window", "yamleditor-<id>");   // no "noopener"
+
+The full editor (not the reduced embedded view) with a Save button, in a top-level window, so links from an AI reach it. It talks to `window.opener` exactly as an iframe talks to its parent: `yamleditor:ready` goes to the opener, messages are only taken from it, and once the page has sent a message, answers go only to its origin. Save sends `yamleditor:save` to the opener (if it is still open) and to the webhook from `load`. Closing the window always sends `{type:"yamleditor:closing", id, name, unsaved}`, with `content` when there are changes that were not saved; if the opener is gone, the browser asks before closing with such changes. When the opener is closed, the AI settings (key included) and the hook from `load` end. Calling `window.open` again with the same name reloads the window - focus the existing one instead. The site sends no Cross-Origin-Opener-Policy, so `window.opener` is kept.
+
+## Tools for browser agents (WebMCP)
+
+In browsers with WebMCP (`document.modelContext`), the editor page registers tools that run in the page itself: `get_document`, `get_problems` (with line and column), `get_value` {path, document?} (the value at `$.a.b[0]`, `a.b[0]` or a JSON Pointer `/a/b/0`, as JSON, aliases resolved; `document` picks one of several documents, 1 = the first), `set_value` {path, value, document?} (any JSON value, written as YAML; a new key of an existing mapping or the next index of a sequence adds an entry; only that place of the code changes), `set_document` {yaml}, `replace_text`, `show_line`, `undo`, and `list_files`, `open_file`, `new_file` {name, yaml?} for the user's other documents. Every change is an undo step for the user.
+
+## Pages
+
+- [YAML Editor](https://yaml.giit.ch/)
+- [Embed the YAML Editor in your website (developer guide)](https://yaml.giit.ch/embed/)
+- [Imprint](https://yaml.giit.ch/imprint.html)
+- [Privacy policy](https://yaml.giit.ch/privacy.html)
+- [Source code on GitHub](https://github.com/SebisCodes/yaml-editor): open source under the Apache License 2.0 (LICENSE and NOTICE in the repository)
+
+A project by [Grünwald Innovation](https://giit.ch/). All giit editors: [editors.giit.ch](https://editors.giit.ch/).
+
+## Viewer and documents by POST
+
+`?viewer=1` shows only the rendered document, read-only, and stores nothing in the browser. The content comes from a link (`#b64=`, `#z=`, `?src=`), from `yamleditor:load` in an iframe, or by POST.
+
+`POST /post.php?viewer=1` as `application/x-www-form-urlencoded` with `content` (text) or `b64` (base64 or base64url), optional `name` and `lang`, at most 20 MB of text. Without `viewer=1` the document opens in the normal editor, in memory only. The document is not stored on the server.
+
+## Open in another editor
+
+Export > "Open in another editor" converts the document in the browser between JSON, YAML, SHLS, XML and CSV and opens the result as a new document in that editor, by a link (`#z=...&file=new&name=...`). What the other format cannot hold is listed first. Pictures do not travel.

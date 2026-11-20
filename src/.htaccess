@@ -1,0 +1,64 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Apache settings  -  yaml.giit.ch
+# ═══════════════════════════════════════════════════════════════════════════
+
+DirectoryIndex index.php index.html
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # /index.html and /index.php are the same page as / - one address for search engines.
+    RewriteCond %{THE_REQUEST} \s/+(embed/)?index\.(html|php)[\s?]
+    RewriteRule ^ /%1 [R=301,L]
+    # Former file paths: /src/... is /... today.
+    RewriteRule ^src/(.*)$ /$1 [R=301,L]
+    # The language folders: /de/ and /de/embed/ are the editor and the developer page in German.
+    RewriteRule ^(de|fr|it|es|pt|nl|pl|tr|ru|uk|zh|ja|ko)$ /$1/ [R=301,L]
+    RewriteRule ^(de|fr|it|es|pt|nl|pl|tr|ru|uk|zh|ja|ko)/(embed/)?$ $2index.php?lang=$1 [L,QSA]
+    # The interface texts of the shared language packs.
+    RewriteRule ^lang/([a-z]{2}/[a-z]+\.js)$ lang.php?f=$1 [L]
+    # The legal pages, counted for the usage statistics.
+    RewriteRule ^((?:impressum|imprint|datenschutz|privacy|agb|terms)\.html)$ legal.php?f=$1 [L]
+    # Not addresses of their own: the PHP modules, the templates and the statistics' access data.
+    RewriteCond %{THE_REQUEST} \s/+(php|templates)/
+    RewriteRule ^ - [R=404,L]
+    RewriteRule (^|/)(\.env.*|metrics\.env)$ - [R=404,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Strict-Transport-Security "max-age=31536000"
+    # Scripts only from this site. Inline styles are set by the scripts
+    # (widths of the areas). connect-src https: lets the editor send saved versions to the
+    # user's own server (webhook) and open files from ?src=. Other websites
+    # may embed the editor (frame-ancestors) - it holds no account or secret.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https: http://localhost:* http://127.0.0.1:*"
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType text/javascript .js
+    AddType image/svg+xml .svg
+    AddType application/json .json
+    AddType application/yaml .yaml .yml
+    AddCharset utf-8 .html .js .css .txt .xml
+</IfModule>
+# LICENSE and NOTICE carry the license and the third-party notices of what the site ships.
+<FilesMatch "^(LICENSE|NOTICE)$">
+    ForceType "text/plain; charset=utf-8"
+</FilesMatch>
+
+# Stylesheets and the start script carry their version in the URL (?v=1);
+# the browser re-checks the modules loaded by the start script after an hour.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 hour"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/javascript image/svg+xml text/plain application/xml
+</IfModule>
