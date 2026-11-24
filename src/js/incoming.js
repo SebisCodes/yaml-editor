@@ -5,7 +5,7 @@
  */
 
 import { parse, getModelValue, mergeData } from './datatree.js?v=13';
-import { VIEWER } from './sync.js?v=24';
+import { VIEWER } from './sync.js?v=25';
 import { store } from './files.js?v=8';
 import { state, ui, FORMAT, showToast } from './state.js?v=2';
 import { setCode } from './history.js?v=5';

@@ -81,6 +81,15 @@
  * The page may answer a key-request with { type: "<P>:ai", decline: true, message }: the wait
  * ends at once and the user sees "<host>: <message>" after copying the prompt.
  *
+ * Files from the page: in an editor with files that takes them (ed.addAssets), the page may send
+ *   { type: "<P>:assets", add: { "<name>": "data:<type>;base64,..." } }
+ * to add files to the host document or replace files of the same name. The text stays as it is,
+ * and the page holds the files already: they join what the page has, so "change", assetsChanged
+ * and the automatic save stay with the user's edits. Checked as a whole like pictures from an
+ * AI, with an extension that fits the type, at most 40 MB per message, waiting and per document.
+ * They wait for the page's load before them and are stored in the order the messages came; a load
+ * after them waits for them. The page gets { type: "<P>:assets", id, added } or { id, error } back.
+ *
  * Template placeholders: in an editor that offers them (ed.parseTemplate and ed.onTemplate), the
  * page may send { type: "<P>:template", placeholders, assets } or the same object as the field
  * `template` of "load"; { type: "<P>:template", clear: true } (or template: null) ends it. The
@@ -160,6 +169,8 @@ import { ANSWER_NONE } from './prompt-parts.js?v=1';
  *   (the message or the `template` field of a load) and returns them in the editor's form.
  * @property {function((TemplateExamples|null)): void} [onTemplate] - the template placeholders to show changed:
  *   the host document's, or null.
+ * @property {function(string, Object<string, string>): Promise<boolean>} [addAssets] - adds files to a document
+ *   of the page by its id, its text as it is; resolves with false when that document is gone.
  */
 
 /**
@@ -263,6 +274,11 @@ import { ANSWER_NONE } from './prompt-parts.js?v=1';
  * @property {PageTemplate|null} template - the page's template placeholders, or null.
  * @property {number} templateRevision - counts the page's template messages and loads with a template: an older check that finishes later is dropped.
  * @property {Promise<void>} templateCheck - settles when the check of the page's last template message is taken; a load waits for it.
+ * @property {Promise<void>} hostLoad - settles when the page's last load of a host document (or ?src=) is done or dropped.
+ * @property {number} hostLoadCount - counts the loads of a host document that started.
+ * @property {number} hostNumber - the number of the load that made the host document what it is.
+ * @property {Promise<void>} assetsQueue - settles when the files of the page's earlier "assets" messages are stored or refused.
+ * @property {number} assetsWaiting - the data URI characters of the "assets" messages that wait.
  * @property {boolean} closingSent - true once "closing" went to the opener.
  * @property {HTMLDialogElement} dialog - the "Save to server" dialog.
  * @property {HTMLButtonElement} saveButton - the Save button.
@@ -288,6 +304,7 @@ import { ANSWER_NONE } from './prompt-parts.js?v=1';
  * @property {object|null} hook - the webhook the page sent with it.
  * @property {?{revision: number, examples: Promise<(TemplateExamples|null)>}} template - the template the page sent with it
  *   (examples null to end it), or null when the load keeps the template as it is.
+ * @property {number} [number] - the number of this load among the loads of a host document.
  */
 
 /**
@@ -343,6 +360,15 @@ const AI_PICTURE_NAME = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/;
 const AI_PICTURE_DATA = /^data:(image\/(png|jpeg|gif|webp)|application\/pdf);base64,[A-Za-z0-9+\/]+={0,2}$/;
 const AI_PICTURE_LIMIT = 20;
 const AI_PICTURES_NAMED = 5;
+/** The extensions a file from the page may have, by its type. */
+const PAGE_FILE_EXTENSIONS = { 'image/png': ['png'], 'image/jpeg': ['jpg', 'jpeg'], 'image/gif': ['gif'], 'image/webp': ['webp'], 'application/pdf': ['pdf'] };
+/** The answers to a refused "assets" message: fixed texts. */
+const ASSETS_INVALID = 'Only PNG, JPEG, GIF, WebP or PDF as base64 data URIs under a plain name with a fitting extension, 1 to 20 files';
+const ASSETS_TOO_LARGE = 'The files are larger than 40 MB';
+const ASSETS_QUEUE_FULL = 'More than 40 MB of files wait to be added';
+const ASSETS_DOCUMENT_TOO_LARGE = 'With these files the document would be larger than 40 MB';
+const ASSETS_NO_DOCUMENT = 'No document from the page';
+const ASSETS_NOT_LOADED = 'The document the files are for is not the document from the page';
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b-\u001f]/g;
 const FILE_EXTENSION = /\.[^.]+$/;
 
@@ -363,7 +389,7 @@ const BYTES_PER_MB = 1e6;
 
 const MESSAGE_VERSION = 2;
 /** The message types a page may send; only one of them sets the page's origin. */
-const PAGE_MESSAGE_TYPES = new Set(['load', 'ai', 'ai-click', 'get', 'save', 'pdf', 'template']);
+const PAGE_MESSAGE_TYPES = new Set(['load', 'ai', 'ai-click', 'get', 'save', 'pdf', 'template', 'assets']);
 const KEY_REQUEST_WAIT_MS = 5000;
 /** How long a press on the AI button waits for the page that shows its own AI dialog. */
 const AI_CLICK_WAIT_MS = 300;
@@ -803,7 +829,8 @@ function createSyncSession(ed) {
         base: null, reported: '',
         hideSave: params.get('save') === '0',
         tidyAll: params.get('tidy') === '1',
-        waitingJobs: new Map(), pdfBusy: false, loadGeneration: 0, template: null, templateRevision: 0, templateCheck: Promise.resolve(), closingSent: false,
+        waitingJobs: new Map(), pdfBusy: false, loadGeneration: 0, template: null, templateRevision: 0, templateCheck: Promise.resolve(),
+        hostLoad: Promise.resolve(), hostLoadCount: 0, hostNumber: 0, assetsQueue: Promise.resolve(), assetsWaiting: 0, closingSent: false,
         dialog: document.getElementById('sync'),
         saveButton: document.getElementById('btn-save'),
         fields: null,
@@ -1298,6 +1325,15 @@ function getHookSignature(hook, body) {
 }
 
 /**
+ * Returns how many bytes a text takes as UTF-8, the way a request carries it.
+ * @param {string} text - the text.
+ * @returns {number} the bytes.
+ */
+function getUtf8Size(text) {
+    return text.length > BLOB_MEASURE_LENGTH ? new Blob([text]).size : new TextEncoder().encode(text).length;
+}
+
+/**
  * Sends a webhook request, or keeps it while another one runs. A save that waits keeps its document,
  * content and webhook as they are at the moment of asking (the newest one per document and address),
  * not what is open when it goes. A command that returns a Promise so the caller can wait.
@@ -1363,7 +1399,7 @@ async function sendHookRequest(sync, job, signal) {
     const headers = { 'Content-Type': 'application/json' };
     if (job.hook.token) headers.Authorization = 'Bearer ' + job.hook.token;
     const json = JSON.stringify({ ...job.body, event: job.event === 'change' ? 'save' : job.event });
-    const bytes = json.length > BLOB_MEASURE_LENGTH ? new Blob([json]).size : new TextEncoder().encode(json).length;
+    const bytes = getUtf8Size(json);
     if (bytes > MAX_REQUEST_BYTES) throw new Error(`the ${sync.ed.word} with its pictures is ${(bytes / BYTES_PER_MB).toFixed(0)} MB - at most 40 MB go in one request`);
     const response = await fetch(job.hook.url, { method: 'POST', headers, body: json, mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer', signal });
     // The server's own words, if it sends {error} or {message} (or a short text).
@@ -1484,10 +1520,20 @@ function isPageMessage(sync, event) {
  * page's origin.
  * @param {SyncSession} sync - the session.
  * @param {string} type - the type without the prefix.
- * @returns {boolean} true for a known type ("template" only in an editor with template placeholders).
+ * @returns {boolean} true for a known type ("template" only in an editor with template placeholders,
+ * "assets" only in an editor that takes files from the page).
  */
 function isKnownMessageType(sync, type) {
-    return PAGE_MESSAGE_TYPES.has(type) && (type !== 'template' || hasTemplateSupport(sync));
+    return PAGE_MESSAGE_TYPES.has(type) && (type !== 'template' || hasTemplateSupport(sync)) && (type !== 'assets' || hasAssetSupport(sync));
+}
+
+/**
+ * Tells whether the editor takes files the page adds to its document.
+ * @param {SyncSession} sync - the session.
+ * @returns {boolean} true in an editor with files that stores them for the page.
+ */
+function hasAssetSupport(sync) {
+    return sync.hasFiles && typeof sync.ed.addAssets === 'function';
 }
 
 /**
@@ -1517,6 +1563,7 @@ function handlePageMessage(sync, event) {
     else if (type === 'save') { if (isHostOpen(sync)) saveDocument(sync); }
     else if (type === 'pdf') sendPdf(sync, message);
     else if (type === 'template') receiveTemplate(sync, message);
+    else if (type === 'assets') receivePageAssets(sync, message);
 }
 
 /**
@@ -1642,14 +1689,16 @@ function showAiDocumentResult(sync, previousId, label) {
  * Loads the page's document (or the AI's result for it) as the host document. The AI's result goes
  * into the host document, whatever its name. The page's pictures are the whole set (what the page
  * removed must not come back); without "assets" they stay. The AI's pictures are added: the ones it
- * did not send stay.
+ * did not send stay. The load waits for the files of the page's earlier "assets" messages, and
+ * sync.hostLoad settles when it is done or dropped.
  * @param {SyncSession} sync - the session.
  * @param {HostLoad} load - the load.
  * @returns {void}
  */
 function importHostDocument(sync, load) {
     const { message, generation, name, pictures, fromAi, template } = load;
-    Promise.all([getLoadContent(sync, message.content, message), template ? template.examples : null, sync.templateCheck])
+    load.number = ++sync.hostLoadCount;
+    sync.hostLoad = Promise.all([getLoadContent(sync, message.content, message), template ? template.examples : null, sync.templateCheck, sync.assetsQueue])
         .then(([content, examples]) => {
             if (generation !== sync.loadGeneration) { examples?.close(); return false; }
             if (template) setTemplateIfCurrent(sync, template.revision, examples, null);
@@ -1657,7 +1706,8 @@ function importHostDocument(sync, load) {
         })
         .then(done => {
             if (done) applyHostLoad(sync, load);           // otherwise a newer load from the page came first
-        });
+        })
+        .then(() => {}, () => {});
 }
 
 /**
@@ -1669,6 +1719,7 @@ function importHostDocument(sync, load) {
 function applyHostLoad(sync, load) {
     const { fromAi, label, hook } = load;
     setHostToCurrent(sync);
+    sync.hostNumber = load.number;
     const host = sync.host;
     if (sync.template) { sync.template.hostId = host.id; sync.ed.onTemplate?.(getHostTemplate(sync)); }
     if (!fromAi) setBase(sync, host);                     // an AI result is not saved at the page yet
@@ -1677,6 +1728,156 @@ function applyHostLoad(sync, load) {
     sync.ed.onAi?.(getAiSettings(sync));
     if (fromAi) { sync.ed.toast(`The AI's result from ${label} is open - Undo takes it back`); sync.ed.onAiResult?.(); }
     sendToPage(sync, { type: 'loaded', id: host.id, name: host.name });
+}
+
+/* ---------- Files the page adds ---------- */
+
+/**
+ * Takes the files of a "<P>:assets" message: measured and checked at once, then stored with the
+ * host document after the page's load before the message and after the files of earlier messages.
+ * A refused message gets its answer at once.
+ * @param {SyncSession} sync - the session.
+ * @param {object} message - the assets message with `add`.
+ * @returns {void}
+ */
+function receivePageAssets(sync, message) {
+    const size = getPageAssetsSize(message.add);
+    const refusal = size > MAX_REQUEST_BYTES ? ASSETS_TOO_LARGE : sync.assetsWaiting + size > MAX_REQUEST_BYTES ? ASSETS_QUEUE_FULL : '';
+    const files = refusal ? null : selectPageAssets(message.add);
+    if (!files) { sendAssetsAnswer(sync, sync.host ? sync.host.id : null, { error: refusal || ASSETS_INVALID }); return; }
+    const number = sync.hostLoadCount, hostLoad = sync.hostLoad;
+    sync.assetsWaiting += size;
+    sync.assetsQueue = sync.assetsQueue
+        .then(() => hostLoad)
+        .then(() => addHostAssets(sync, files, number))
+        .catch(() => sendAssetsAnswer(sync, sync.host ? sync.host.id : null, { error: ASSETS_NOT_LOADED }))
+        .finally(() => { sync.assetsWaiting -= size; });
+}
+
+/**
+ * Returns how many characters the files of an "assets" message hold, names and data URIs; cheap,
+ * so it comes before the checks.
+ * @param {*} add - the `add` field of the message.
+ * @returns {number} the characters; 0 for an `add` other than an object.
+ */
+function getPageAssetsSize(add) {
+    if (!add || typeof add !== 'object') return 0;
+    return Object.entries(add).reduce((sum, [name, dataUri]) => sum + name.length + (typeof dataUri === 'string' ? dataUri.length : 0), 0);
+}
+
+/**
+ * Returns the files of an "assets" message when every one of them may be taken: 1 to
+ * AI_PICTURE_LIMIT files, each a picture or PDF as the AI may send it, with an extension that fits
+ * its type and base64 that decodes.
+ * @param {*} add - the `add` field of the message.
+ * @returns {Object<string, string>|null} the files by name, or null when the message is refused.
+ */
+function selectPageAssets(add) {
+    if (!add || typeof add !== 'object' || Array.isArray(add) || Object.getPrototypeOf(add) !== Object.prototype) return null;
+    const entries = Object.entries(add);
+    if (!entries.length || entries.length > AI_PICTURE_LIMIT) return null;
+    return entries.every(([name, dataUri]) => isPageAsset(name, dataUri)) ? Object.fromEntries(entries) : null;
+}
+
+/**
+ * Tells whether one file from the page may be taken.
+ * @param {string} name - the file's name.
+ * @param {*} dataUri - its content, a data URI.
+ * @returns {boolean} true for an allowed type under a plain name with a fitting extension and base64 that decodes.
+ */
+function isPageAsset(name, dataUri) {
+    if (!AI_PICTURE_NAME.test(name) || typeof dataUri !== 'string') return false;
+    const match = AI_PICTURE_DATA.exec(dataUri);
+    if (!match) return false;
+    const extension = (FILE_EXTENSION.exec(name) || [''])[0].slice(1).toLowerCase();
+    return PAGE_FILE_EXTENSIONS[match[1]].includes(extension) && isDecodableBase64(dataUri.slice(dataUri.indexOf(',') + 1));
+}
+
+/**
+ * Tells whether base64 text decodes: with padding, the text fills whole blocks of four characters;
+ * without padding, the last block holds two or three characters.
+ * @param {string} text - base64 of the allowed characters, padding at the end only.
+ * @returns {boolean} true when it decodes.
+ */
+function isDecodableBase64(text) {
+    return text.endsWith('=') ? text.length % 4 === 0 : text.length % 4 !== 1;
+}
+
+/**
+ * Stores files from the page with the host document of the page's load before the message, when
+ * that document is still the host document and stays within the size, and answers the page.
+ * @param {SyncSession} sync - the session.
+ * @param {Object<string, string>} files - the checked files by name.
+ * @param {number} number - the number of the page's last load of a host document when the message came.
+ * @returns {Promise<void>} resolves when the files are stored or refused and the page has its answer.
+ */
+async function addHostAssets(sync, files, number) {
+    if (!sync.host || sync.hostNumber !== number) { sendAssetsAnswer(sync, sync.host ? sync.host.id : null, { error: sync.host ? ASSETS_NOT_LOADED : ASSETS_NO_DOCUMENT }); return; }
+    updateHostFromEditor(sync);
+    const host = sync.host;
+    if (getDocumentBytes(sync, { ...host, assets: { ...host.assets, ...files } }) > MAX_REQUEST_BYTES) { sendAssetsAnswer(sync, host.id, { error: ASSETS_DOCUMENT_TOO_LARGE }); return; }
+    const stored = await sync.ed.addAssets(host.id, files);
+    if (!stored || !sync.host || sync.host.id !== host.id) { sendAssetsAnswer(sync, host.id, { error: ASSETS_NOT_LOADED }); return; }
+    setAssetsKnownToPage(sync, files);
+    sendAssetsAnswer(sync, host.id, { added: Object.keys(files) });
+}
+
+/**
+ * Returns how many bytes a document takes in a save to a webhook, its files included.
+ * @param {SyncSession} sync - the session.
+ * @param {EditorDocument} editorDocument - the document.
+ * @returns {number} the bytes of the request body.
+ */
+function getDocumentBytes(sync, editorDocument) {
+    return getUtf8Size(JSON.stringify(createPayload(sync, 'save', true, editorDocument)));
+}
+
+/**
+ * Notes files the page added as part of the host document, of what the page has and of what it
+ * last heard; the text and the other files of each stay as they were.
+ * @param {SyncSession} sync - the session.
+ * @param {Object<string, string>} files - the files added.
+ * @returns {void}
+ */
+function setAssetsKnownToPage(sync, files) {
+    if (isHostOpen(sync)) updateHostFromEditor(sync);
+    else sync.host = { ...sync.host, assets: { ...sync.host.assets, ...files } };
+    if (sync.base) sync.base = addAssetsToSnapshot(sync.base, files);
+    if (sync.reported) sync.reported = getSnapshotKey(addAssetsToSnapshot(parseSnapshotKey(sync.reported), files));
+}
+
+/**
+ * Returns the snapshot a key of getSnapshotKey() stands for; the fingerprints are JSON, which
+ * holds its control characters escaped, so the last NUL character ends the content.
+ * @param {string} key - the key.
+ * @returns {Snapshot} the snapshot.
+ */
+function parseSnapshotKey(key) {
+    const end = key.lastIndexOf('\u0000');
+    return { content: key.slice(0, end), assets: JSON.parse(key.slice(end + 1)) };
+}
+
+/**
+ * Returns a snapshot with the fingerprints of more files, sorted by name.
+ * @param {Snapshot} snapshot - the snapshot.
+ * @param {Object<string, string>} files - the files to add by name, as data URIs.
+ * @returns {Snapshot} the merged snapshot.
+ */
+function addAssetsToSnapshot(snapshot, files) {
+    const added = createSnapshot({ content: snapshot.content, assets: files }).assets;
+    const merged = Object.entries({ ...snapshot.assets, ...added }).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    return { content: snapshot.content, assets: Object.fromEntries(merged) };
+}
+
+/**
+ * Sends the answer to an "assets" message.
+ * @param {SyncSession} sync - the session.
+ * @param {string|null} id - the host document's id, null before the first load.
+ * @param {{added?: string[], error?: string}} fields - the names added, or the reason for the refusal.
+ * @returns {void}
+ */
+function sendAssetsAnswer(sync, id, fields) {
+    sendToPage(sync, { type: 'assets', id, ...fields });
 }
 
 /* ---------- Template placeholders ---------- */
@@ -1972,7 +2173,9 @@ function openSourceDocument(sync, sourceUrl) {
         showSourceError(sync, error);
         return undefined;
     }
-    return receiveSourceDocument(sync, sourceUrl);
+    const loading = receiveSourceDocument(sync, sourceUrl);
+    if (sync.trusted) sync.hostLoad = loading;
+    return loading;
 }
 
 /**
@@ -1982,6 +2185,7 @@ function openSourceDocument(sync, sourceUrl) {
  * @returns {Promise<void>} resolves when the file is open or refused.
  */
 async function receiveSourceDocument(sync, sourceUrl) {
+    const number = ++sync.hostLoadCount;
     try {
         const generation = sync.loadGeneration;
         const response = await fetch(new URL(sourceUrl, location.href), { credentials: 'omit' });
@@ -1992,7 +2196,7 @@ async function receiveSourceDocument(sync, sourceUrl) {
         const content = await getLoadContent(sync, text);
         if (generation !== sync.loadGeneration) throw new Error(LOADED_ELSEWHERE);
         await sync.ed.load({ name, content, assets: {}, page: 'src:' + new URL(sourceUrl, location.href).origin, temp: sync.trusted });
-        if (sync.trusted) { setHostToCurrent(sync); setBase(sync, sync.host); }
+        if (sync.trusted) { setHostToCurrent(sync); setBase(sync, sync.host); sync.hostNumber = number; }
     } catch (error) { showSourceError(sync, error); }
 }
 

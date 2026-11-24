@@ -22,10 +22,10 @@
  *   5. offer the test hook window.yamlEditor.
  */
 
-import { createI18n } from './i18n.js?v=24';
+import { createI18n } from './i18n.js?v=25';
 import { createWrap } from './wrap.js?v=5';
 import { createAiStatus } from './aistatus.js?v=9';
-import { createSync } from './sync.js?v=24';
+import { createSync } from './sync.js?v=25';
 import './export-menu.js?v=6';
 import { startConvert } from './convert-to.js?v=15';
 import { importYamlLibrary, TooManyValues, setTemplateSyntax } from './datatree.js?v=13';
@@ -53,7 +53,7 @@ import { startFileImport } from './file-import.js?v=5';
 import { startKeyboard } from './keyboard.js?v=5';
 import { showSplit, startLayout, startDialogs } from './layout.js?v=5';
 import { startExportDialog } from './export-dialog.js?v=5';
-import { receiveDocument, importExternalDocument } from './incoming.js?v=5';
+import { receiveDocument, importExternalDocument } from './incoming.js?v=6';
 import { startTemplateControls } from './template-panel.js?v=2';
 import { createTemplateExamples } from './template-examples.js?v=2';
 import { getViewMode, getTreeModel } from './tree-views.js?v=1';
