@@ -25,7 +25,7 @@ import { parseMarkdown, formatMarkdownBlocks, formatMarkdownNotes, formatMarkdow
 import { parseHtml, formatHtmlBlocks, formatHtmlNotes, formatHtmlDocument } from './convert-html.js?v=2';
 import { parseLatex, formatLatexBlocks, formatLatexDocument } from './convert-latex.js?v=3';
 import { parseTypst, formatTypstBlocks, formatTypstDocument } from './convert-typst.js?v=3';
-import { convertData } from './convert-data.js?v=5';
+import { convertData } from './convert-data.js?v=6';
 
 /** The formats of the document group. */
 export const DOCS = ['md', 'latex', 'typst', 'html'];

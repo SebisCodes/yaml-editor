@@ -19,7 +19,7 @@
  * - JSON Lines: one compact JSON value per line; an array is one line per entry.
  */
 
-import { getYamlLibrary, setOwnProperty, getPlainValue, getAliasTarget, parseJsonl } from './datatree.js?v=12';
+import { getYamlLibrary, setOwnProperty, getPlainValue, getAliasTarget, parseJsonl } from './datatree.js?v=13';
 
 const NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 /** The separator CSV is written with unless another is given. */

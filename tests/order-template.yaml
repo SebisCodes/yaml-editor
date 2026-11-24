@@ -1,0 +1,28 @@
+# Order confirmation for {{name}}
+orderNumber: {{orderNumber}}
+customer:
+  name: {{name}}
+  street: "{{street}}"
+  postalCode: '{{postalCode}}'
+  city: {{city}}
+greeting: Dear {{name}},
+address: {{street}} {{postalCode}}
+items:
+{{#items}}
+  - title: {{title}}
+    quantity: {{quantity}}
+    price: {{price}}
+{{/items}}
+  - title: Shipping
+    quantity: 1
+    price: 0
+{{#hasNote}}
+note: {{note}}
+{{/hasNote}}
+letter: |
+  Dear {{name}},
+  {{^hasNote}}
+  Thank you for your order.
+  {{/hasNote}}
+tags: [order, {{tag}}]
+paid: {{paid}}

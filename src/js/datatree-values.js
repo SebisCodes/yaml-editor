@@ -4,7 +4,7 @@
  * path or at a place in the code.
  */
 
-import { isContainer, getAliasTarget, setOwnProperty, isMergeEntry, getMergedNodes } from './datatree-core.js?v=2';
+import { isContainer, getAliasTarget, setOwnProperty, isMergeEntry, getMergedNodes } from './datatree-core.js?v=3';
 
 /**
  * At most this many values from one call: aliases that repeat each other (a: &a [x, x],

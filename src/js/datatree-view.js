@@ -15,9 +15,9 @@
  * field), so its functions stay together in this file.
  */
 
-import { isContainer } from './datatree-core.js?v=2';
-import { getPath, getDocIndex, formatPath, getNodeAtPath, runForEachNode } from './datatree-values.js?v=3';
-import { escapeHtml } from './datatree-highlight.js?v=2';
+import { isContainer } from './datatree-core.js?v=3';
+import { getPath, getDocIndex, formatPath, getNodeAtPath, runForEachNode } from './datatree-values.js?v=4';
+import { escapeHtml } from './datatree-highlight.js?v=3';
 
 /** The number of entries a large container shows at first, and more on each click. */
 const MORE = 200;
@@ -146,6 +146,7 @@ const getDocLabel = (doc, docIndex) => doc.label || `Document ${docIndex + 1}`;
  * @returns {string} the shown text: a string in quotes (shortened, line breaks as ⏎), a number as written.
  */
 function formatShownValue(node) {
+    if (node.placeholder === 'value') return node.value;   // a template placeholder, as written
     if (node.style === 'datetime') return node.value;      // a TOML date or time
     if (node.type === 'string') {
         const value = node.value.length > SHOWN_STRING_LENGTH ? node.value.slice(0, SHOWN_STRING_LENGTH) + '…' : node.value;
@@ -154,6 +155,17 @@ function formatShownValue(node) {
     if (node.type === 'null') return 'null';
     if (node.type === 'number') return node.raw && node.raw.length < SHOWN_RAW_LENGTH ? node.raw : String(node.value);
     return String(node.value);
+}
+
+/**
+ * Returns the type a row names: the node's type, or what stands in its place.
+ * @param {DataNode} node - the node.
+ * @returns {string} the type word before translation, e.g. "string", "date / time" or "placeholder".
+ */
+function getTypeLabel(node) {
+    if (node.type === 'alias') return 'alias';
+    if (node.placeholder === 'value') return 'placeholder';
+    return node.style === 'datetime' ? 'date / time' : node.type;
 }
 
 /**
@@ -253,7 +265,7 @@ export function createTree({ el, pathEl, t = s => s, onPick = () => {}, onEdit =
         if (node.anchor) html += `<span class="trow-anchor" title="${escapeHtml(t('Anchor'))}">&amp;${escapeHtml(node.anchor)}</span>`;
         if (node.tag) html += `<span class="trow-tag">${escapeHtml(node.tag)}</span>`;
         html += renderNodeValue(node, container, open);
-        html += `<span class="trow-type">${escapeHtml(t(node.type === 'alias' ? 'alias' : node.style === 'datetime' ? 'date / time' : node.type))}</span></div>`;
+        html += `<span class="trow-type">${escapeHtml(t(getTypeLabel(node)))}</span></div>`;
         return html;
     }
 
@@ -278,7 +290,7 @@ export function createTree({ el, pathEl, t = s => s, onPick = () => {}, onEdit =
             const targetType = node.target ? node.target.type : '';
             return `<span class="trow-v t-alias" title="${escapeHtml(t('Alias'))}">*${escapeHtml(node.value)}</span>${targetType ? `<span class="trow-target">→ ${escapeHtml(t(targetType))}</span>` : ''}`;
         }
-        return `<span class="trow-v t-${node.type}" data-edit="value">${highlightMatch(formatShownValue(node))}</span>`;
+        return `<span class="trow-v t-${node.placeholder === 'value' ? 'placeholder' : node.type}" data-edit="value">${highlightMatch(formatShownValue(node))}</span>`;
     }
 
     /**

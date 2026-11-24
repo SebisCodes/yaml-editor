@@ -37,6 +37,21 @@ def check_that(cond, what):
         failures.append(what)
 
 
+def show_side_panel(page, is_open):
+    """Opens or closes the side panel's drawer (it is closed at the start).
+
+    Args:
+        page (Page): the editor's page.
+        is_open (bool): True to open it, False to close it.
+
+    Returns:
+        None: the side panel is open or closed.
+    """
+    button = page.locator('#btn-panel')
+    if button.count() and button.is_visible() and (button.get_attribute('aria-expanded') == 'true') != is_open:
+        button.click()
+
+
 def set_code(page, text):
     """Sets the code through the test hook and waits until it is read.
 
@@ -178,6 +193,7 @@ with sync_playwright() as pw:
 
     # --- Convert ---
     set_code(page, '- id: 1\n  name: Apple\n  code: "007"\n- id: 2\n  name: Pear, green\n  code: x\n')
+    show_side_panel(page, True)
     page.click('[data-itab=convert]')
     page.wait_for_timeout(300)
     check_that(page.input_value('#cv-out') == '[\n  {\n    "id": 1,\n    "name": "Apple",\n    "code": "007"\n  },\n  {\n    "id": 2,\n    "name": "Pear, green",\n    "code": "x"\n  }\n]\n', 'Convert to JSON')
@@ -206,6 +222,7 @@ with sync_playwright() as pw:
     page.click('[data-new=blank]')
     page.wait_for_timeout(200)
     set_code(page, 'port: 70000\n')
+    show_side_panel(page, True)
     page.click('[data-itab=schema]')
     page.wait_for_timeout(200)
     page.select_option('#sc-doc', label='Server schema')
@@ -216,6 +233,7 @@ with sync_playwright() as pw:
     set_code(page, 'name: web\nport: 8080\n')
     check_that(get_state(page, 'S.problems.length') == 0 and 'fits the schema' in page.inner_text('#schema-wrap'), 'valid data fits the schema')
     page.click('[data-itab=node]')
+    show_side_panel(page, False)
 
     # --- Templates, My documents ---
     page.click('#btn-new')
@@ -244,6 +262,7 @@ with sync_playwright() as pw:
     page.set_input_files('#file', os.path.join(d, 'events.jsonl'))
     page.wait_for_timeout(800)
     check_that(get_state(page, 'S.name') == 'events' and get_state(page, 'S.code') == '- id: 1\n  level: info\n- id: 2\n  tags:\n    - a\n    - b\n', 'a .jsonl file opens as a sequence: ' + repr(get_state(page, 'S.code')))
+    show_side_panel(page, True)
     page.click('[data-itab=convert]')
     page.select_option('#cv-to', 'jsonl')
     page.wait_for_timeout(300)
@@ -255,6 +274,7 @@ with sync_playwright() as pw:
     page.wait_for_timeout(300)
     check_that(page.input_value('#cv-out') == '{"a":1,"b":[2]}\n', 'one mapping: one line')
     page.click('[data-itab=node]')
+    show_side_panel(page, False)
 
     # --- AI link to a new document, mode=add merges ---
     data = '# from the AI\nitems: [1, 2]\n'

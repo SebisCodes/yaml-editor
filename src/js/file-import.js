@@ -4,11 +4,11 @@
  * YAML. A whole YAML document pasted outside the code replaces the open one (one undo step).
  */
 
-import { parse, importYamlLibrary, getModelValue } from './datatree.js?v=12';
-import { convertToYaml, convertFromJsonl, convertFromCsv, convertFromXml } from './convert.js?v=13';
+import { parse, importYamlLibrary, getModelValue } from './datatree.js?v=13';
+import { convertToYaml, convertFromJsonl, convertFromCsv, convertFromXml } from './convert.js?v=14';
 import { FORMAT, TYPING_FIELDS, showToast, getElement } from './state.js?v=2';
-import { setCode } from './history.js?v=3';
-import { createDocument } from './documents.js?v=3';
+import { setCode } from './history.js?v=4';
+import { createDocument } from './documents.js?v=4';
 
 /** The largest file that is opened, in bytes. */
 const MAX_FILE_SIZE = 8 * 1024 * 1024;

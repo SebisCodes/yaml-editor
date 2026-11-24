@@ -4,7 +4,7 @@
  * it into the document at the right place.
  */
 
-import { getYamlLibrary } from './datatree-core.js?v=2';
+import { getYamlLibrary } from './datatree-core.js?v=3';
 
 /**
  * How a YAML scalar is written.

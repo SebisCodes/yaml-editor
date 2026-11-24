@@ -12,7 +12,9 @@
  * opened, before the first paint: data-opened on the root, which sync.js reads,
  * and the classes embedded (inside a page that embeds the editor, and in the viewer) and
  * own-window (its own window opened by a page), which hide the way back to the overview and
- * the footer. The legal pages and the developer page load this file too and stay unmarked.
+ * the footer. With ?template=mustache or ?template=angle it marks data-template on the root,
+ * which shows the controls of template placeholders. The legal pages and the developer page load
+ * this file too and stay unmarked.
  *
  * Steps when the file runs:
  *   1. mark how the page is opened, and swap in the storage in memory for the viewer;
@@ -35,12 +37,15 @@
     var VIEWER_ON = '1';
     var EMBEDDED_CLASS = 'embedded';
     var OWN_WINDOW_CLASS = 'own-window';
+    var TEMPLATE_PARAMETER = 'template';
+    var TEMPLATE_SYNTAXES = ['mustache', 'angle'];
+    var TEMPLATE_ATTRIBUTE = 'data-template';
     var fixed = null;
     var stored = null;
     try { stored = window.localStorage; } catch (e) { /* storage blocked */ }
     try {
         var query = new URLSearchParams(location.search);
-        if (document.currentScript && document.currentScript.hasAttribute(EDITOR_PAGE)) setOpenedState(query);
+        if (document.currentScript && document.currentScript.hasAttribute(EDITOR_PAGE)) { setOpenedState(query); setTemplateState(query); }
         if (query.get(VIEWER_PARAMETER) === VIEWER_ON) {
             root.classList.add('viewer');
             if (!/^#.*=/.test(location.hash)) root.classList.add('viewer-empty');
@@ -108,6 +113,19 @@
         if (window.parent !== window) return OPENED_IN_FRAME;
         if (query.get(EMBED_PARAMETER) === EMBED_IN_WINDOW) return window.opener ? OPENED_AS_WINDOW : '';
         return query.has(EMBED_PARAMETER) ? OPENED_WITH_EMBED : '';
+    }
+
+    /**
+     * Marks the editor page with the template syntax of ?template= (data-template on the root), so
+     * the controls of template placeholders are there from the first paint; any other value
+     * leaves the page unmarked.
+     * @param {URLSearchParams} query - the parameters of the page's address.
+     * @returns {void}
+     */
+    function setTemplateState(query) {
+        var syntax = query.get(TEMPLATE_PARAMETER);
+        root.removeAttribute(TEMPLATE_ATTRIBUTE);
+        if (TEMPLATE_SYNTAXES.indexOf(syntax) >= 0) root.setAttribute(TEMPLATE_ATTRIBUTE, syntax);
     }
 
     /**

@@ -4,11 +4,12 @@
  * values, and the code cursor that marks its value in the tree.
  */
 
-import { formatPath, getNodeAtPosition } from './datatree.js?v=12';
+import { formatPath } from './datatree.js?v=13';
+import { getTreeNodeAtCode } from './tree-views.js?v=1';
 import { state, ui, areas, showToast, getElement } from './state.js?v=2';
-import { moveLineBand } from './code-view.js?v=3';
-import { editCodeFromTree, runNodeAction, CHOOSE_VALUE } from './tree-panel.js?v=3';
-import { renderValuePanel } from './value-panel.js?v=3';
+import { moveLineBand } from './code-view.js?v=4';
+import { editCodeFromTree, runNodeAction, CHOOSE_VALUE } from './tree-panel.js?v=4';
+import { renderValuePanel } from './value-panel.js?v=4';
 
 /** The pause after typing in the search before it searches, in milliseconds. */
 const SEARCH_DELAY = 160;
@@ -129,6 +130,6 @@ export function selectSearchField() {
  */
 export function selectCursorNode() {
     if (!state.model || areas.tree.isEditing()) return;
-    const node = getNodeAtPosition(state.model, ui.ta.selectionStart);
+    const node = getTreeNodeAtCode(ui.ta.selectionStart);
     if (node) { areas.tree.selectNode(node); renderValuePanel(); }
 }

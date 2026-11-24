@@ -57,6 +57,7 @@ editor hides the page text around it and shows a Save button.
 | `viewer=1` | The read-only viewer (see "Viewer"). Works alone or with `embed`, `theme`, `src` and a document in the hash. |
 | `theme=light`, `dark`, `auto` | Fixes the color theme for this page load and hides the theme switch. The visitor's own stored choice stays as it is. Other values are ignored. |
 | `tidy=1` | Every document your page hands over (by `load` or `src`) is tidied as part of the load, exactly as the editor's Tidy / Format does it. It does not count as an edit: no `change` message, `get` and `save` return the tidied code, and Undo does not go back before it. Code the editor cannot read is loaded as it is. |
+| `template=mustache`, `angle` | For templates whose placeholders your server fills in before the data is used: `{{name}}`, `{{#name}} … {{/name}}` and `{{^name}} … {{/name}}`, or with `angle` `<<name>>` and `<<?name>> … <</?name>>`. A placeholder where a value stands (`port: {{port}}`) reads as a value the schema checks once it is filled; a placeholder in a string or a comment is text. The text between the tags of a section counts once. The tree shows the data filled with your examples (`yamleditor:template`, see "Template placeholders" below), or with the switch "Template" the tags as written; the code view shows the tags as written, and the list of problems reports a placeholder key without quotes (`{{k}}: 1`), a section left open, a stray end tag, an end tag that closes an outer section while an inner one is open, and a tag with a sign outside the syntax. While the document holds tags, Format and the conversions to other formats keep it as written (with a message), `tidy=1` and `tidy: true` load it as it is, and a tree edit keeps every tag outside the part it changes. It holds for every document of this page load. |
 | `src=<URL>` | Opens a file from an https address. Your server must allow CORS for `https://yaml.giit.ch`. |
 | `name=<name>` | The name of the document opened with `src`. |
 | `webhook=<URL>` | Sends the document to that address on Save (see "Webhook"). Only for this document and only while the page is open; it is never stored. At the top level the visitor is asked first; inside your page it works only together with `src`. |
@@ -98,15 +99,18 @@ Editor to page:
 | `yamleditor:closing` | `id, name, unsaved, content?` | (own window) The window closes. Always sent; `content` only when there are unsaved changes, `id` is null before the first load. |
 | `yamleditor:reload` | `id, unsaved` | F5 or Ctrl+R inside your page. The editor does not reload itself; ask the user and reload the frame if wanted. |
 | `yamleditor:key-request` | `reason: "missing"` | The editor has no AI key for this session yet (see "AI through your own server"). |
+| `yamleditor:ai-click` | `request, id, name` | The user pressed the AI button; only with `ai: { dialog: "page" }` (see "AI through your own server"). |
 
 Page to editor:
 
 | Message | Fields | Meaning |
 |---|---|---|
-| `yamleditor:load` | `name, content, context?, hook?, ai?, from?, target?, tidy?` | Opens your document. A document of the same name that came from your page before is replaced; the user's own documents never are. |
+| `yamleditor:load` | `name, content, context?, hook?, ai?, from?, target?, tidy?, template?` | Opens your document. A document of the same name that came from your page before is replaced; the user's own documents never are. |
 | `yamleditor:get` |  | Asks for the current state; always answered with `yamleditor:save`, also when nothing changed (`id` and `content` are null before the first load). |
 | `yamleditor:save` |  | Presses Save. |
-| `yamleditor:ai` | `label?, prompt?, endpoint?, key?, base?` or `clear: true` | AI through your own server. |
+| `yamleditor:ai` | `label?, prompt?, endpoint?, key?, base?, answer?, dialog?` or `clear: true`, or `decline: true, message?` | AI through your own server; `decline` answers `yamleditor:key-request`. |
+| `yamleditor:ai-click` | `request, handled` | The answer to `yamleditor:ai-click`: `handled: true` when your page shows its own AI dialog. |
+| `yamleditor:template` | `placeholders` or `clear: true` | With `?template=`: your placeholders with examples (see "Template placeholders"). |
 
 Optional fields of `yamleditor:load`:
 
@@ -120,7 +124,7 @@ Optional fields of `yamleditor:load`:
 - `from: "ai"` and `target: "current" | "new"`: a result of the AI (see below).
 - `tidy: true`: tidies this one document as part of the load, like `?tidy=1`.
 
-Documents of the YAML Editor have no files of their own, so no message carries `assets`,
+Documents of the YAML Editor have no files of their own, so no document message carries `assets`,
 `assetsChanged` or `assetsRemoved`, and `assets` in a `load` is ignored.
 
 ### Your document
@@ -138,6 +142,60 @@ it the editor falls back to the old copy command or shows the prompt to copy by 
 link from an AI cannot reach an editor inside another website, so in a frame the editor asks
 the user to paste the AI's whole answer instead. Open the editor in its own window if links
 should work.
+
+## Template placeholders
+
+With `?template=mustache` (or `angle`) your page can send the placeholders of the document with
+examples, as the message `yamleditor:template` or as the field `template` of `yamleditor:load`:
+
+```js
+frame.contentWindow.postMessage({
+  type: 'yamleditor:template',
+  placeholders: [
+    { name: 'name', kind: 'value', label: 'Name', example: 'John Doe' },
+    { name: 'orderNumber', kind: 'value', label: 'Order number', example: '1001' },
+    { name: 'hasNote', kind: 'section', label: 'With a note', shown: true },
+    { name: 'items', kind: 'list', label: 'Items',
+      fields: [ { name: 'title', label: 'Item' }, { name: 'quantity', label: 'Quantity' } ],
+      rows: [ { title: 'Chair', quantity: '2' }, { title: 'Table', quantity: '1' } ] },
+  ],
+}, 'https://yaml.giit.ch');
+```
+
+| Field | Meaning | Limit |
+|---|---|---|
+| `name` | the tag's name: a letter or `_`, then letters, digits, `_`, `.`, `-` | 60 characters |
+| `kind` | `value` (the default), `image`, `section` (also for inverted sections), `list` | - |
+| `label`, `description` | what the "Placeholders" box shows | 80, 300 characters |
+| `example` | `value`: the example text | 2000 characters |
+| `image` | `image`: the name of an example picture in `assets`; the tree shows the name as text | - |
+| `assets` | example pictures: PNG, JPEG, GIF or WebP as base64 data addresses under plain names | 20 pictures, 40 MB |
+| `shown` | `section`: example state, `true` or `false` | - |
+| `fields`, `rows` | `list`: the placeholders of one entry, and example entries (field name to text) | 50, 50 |
+
+- The tree shows the example view by default: the data the template gives when it is filled with
+  your examples. Sections follow their example state (an inverted section the opposite), a list
+  repeats its entry once per row. A placeholder without an example shows its label in brackets
+  (`[Name]`); a section without `shown` is shown once (an inverted one hidden); a list without
+  `rows` shows one entry with the field labels. A line that holds only section tags is left out
+  with its line break. The switch "Template" in the tree's bar shows the template's tree with the
+  tags as written.
+- Each example is written for its place: a placeholder that is a whole value takes the example as
+  a YAML number, `true`, `false`, `null` or a string in quotes when it reads as one, else as a string; a key takes it as a string; text inside a
+  string or comment takes it in that text's own escaping (double quotes get their escapes, a block scalar the indentation of its line; in single quotes, plain text and a folded block scalar each line break of the example gets an empty line, so the value holds the example's line breaks; an example that would change the structure of a plain value gives the note). When the filled text is
+  not valid YAML, the tree shows the template with a note.
+- Each message replaces the list before it; `{ type: 'yamleditor:template', clear: true }` (or
+  `template: null` in a load) ends it, a load without `template` keeps it. The list belongs to your
+  document: other documents of the user show the labels in brackets.
+- Every text is shown as text; longer texts are cut. Examples live in memory for the open
+  document only; saving, every export and the messages to your page carry the template code.
+- In the example view a key or value that is copied text of the template can be changed in the
+  tree and changes the template there; a value that holds an example is read-only.
+- The "Placeholders" box at the bottom of the code lists label, tag and example; a click puts the
+  tag at the cursor (a section around the selection) as one undo step. Without a list from your
+  page it lists the tags found in the document.
+- The problems, the schema check, Save, `change`, `get`, the webhook, Download and every export
+  are always the template as written.
 
 ## Webhook
 
@@ -244,7 +302,7 @@ Content-Type: application/json
 {"editor": "yaml", "target": "current" | "new", "name": "<short name>", "content": "<the complete YAML>"}
 ```
 
-An AI that cannot send HTTP requests answers with a link instead, which the user pastes into
+An AI that cannot send HTTP requests answers with a link, which the user pastes into
 the editor. When your server has a result, your page sends `{ type: 'yamleditor:load', name,
 content, from: 'ai', target }`: `target: "current"` puts it into your document (the user
 sees a note, Undo takes it back, it counts as not saved yet), and `target: "new"` opens a
@@ -255,6 +313,46 @@ One key per editor session: once the editor has a key it keeps it until the sess
 `clear`, and does not take a different one. Only while it has none, "Copy prompt" sends `{
 type: 'yamleditor:key-request', reason: 'missing' }`; answer with a `yamleditor:ai` message
 within 5 seconds.
+
+### Your own answer part, your own AI dialog, declining a key
+
+- `answer` (in `ai` of `load`, or in `yamleditor:ai`): your own text for the "HOW TO ANSWER" part of
+  the copied prompt, for example when your page takes the AI's answer in its own way. The
+  prompt shows it fenced under `HOW TO ANSWER FROM THE WEBSITE <your host>` and carries neither
+  the endpoint nor the key, so "Copy prompt" sends no `key-request`. `"none"` leaves the part
+  out, `""` gives the editor's own part back, `clear` ends it with the other settings. At most
+  4000 characters are kept. The AI dialog says that your site gives the answering
+  instructions and shows your text together with your prompt.
+- `dialog: "page"` (in `ai`): your page shows its own AI dialog. When the user presses the AI
+  button while your document is open, the editor sends `{ type: 'yamleditor:ai-click', request,
+  id, name }` (no content) and waits 300 ms. Answer `{ type: 'yamleditor:ai-click', request,
+  handled: true }` with the same `request` to keep the editor's dialog shut; `handled: false`
+  opens it at once, and without an answer it opens after the wait. `dialog: "editor"` or
+  `clear` ends it.
+- Declining a key: answer `yamleditor:key-request` with `{ type: 'yamleditor:ai', decline: true,
+  message }` when your server gives no key, for example when the user is not logged in. The
+  editor stops waiting at once, the prompt asks the AI for a link, and after copying the user
+  sees `<your host>: <message>` as plain text on one line (at most 200 characters). Write
+  `message` in your page's language; without it the editor shows its own note.
+
+```js
+ed.contentWindow.postMessage({ type: 'yamleditor:ai', dialog: 'page', answer: 'Reply in the chat of example.com.' }, ORIGIN);
+addEventListener('message', e => {
+  if (e.source !== ed.contentWindow || e.origin !== ORIGIN) return;
+  const m = e.data;
+  if (m.type === 'yamleditor:ai-click') {                 // the user pressed the AI button
+    openMyAiDialog();
+    ed.contentWindow.postMessage({ type: 'yamleditor:ai-click', request: m.request, handled: true }, ORIGIN);
+  }
+  if (m.type === 'yamleditor:key-request' && !loggedIn) {
+    ed.contentWindow.postMessage({ type: 'yamleditor:ai', decline: true, message: 'Please log in to use the AI.' }, ORIGIN);
+  }
+});
+```
+
+In every prompt the document stands in a code fence one backtick longer than any run of
+backticks in it, below a line that marks its text, its name and a quoted selection as data;
+your texts (`prompt`, `rules`, `answer`) stand in such fences under your real host.
 
 Key, endpoint and prompt are taken only from the page around the editor, kept in memory,
 never stored and never sent by the editor itself: the key only goes into the prompt the user

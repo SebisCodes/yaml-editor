@@ -28,9 +28,9 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
-<link rel="stylesheet" href="/css/style.css?v=26">
+<link rel="stylesheet" href="/css/style.css?v=27">
 <script src="/js/lang-menu.js?v=1" defer></script>
-<script src="/js/theme.js?v=9" data-editor-page></script>
+<script src="/js/theme.js?v=10" data-editor-page></script>
 <script type="application/ld+json"><?= get_json_ld('jsonld') ?></script>
 </head>
 <body>
@@ -107,6 +107,10 @@
                 <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" aria-label="YAML code"></textarea>
             </div>
         </div>
+        <div id="placeholder-box" class="placeholder-box template-control">
+            <div id="placeholder-list" class="placeholder-list" data-placeholder-list role="group" aria-label="Placeholders" hidden></div>
+            <button type="button" class="placeholder-header" data-placeholder-toggle aria-expanded="false" aria-controls="placeholder-list" title="The placeholders of the template - a click on one puts its tag at the cursor"><svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg><span>Placeholders</span><span class="placeholder-count" data-placeholder-count data-no-i18n></span></button>
+        </div>
     </section>
 
     <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Drag to change the width of the code area" title="Drag to change the width" tabindex="0"></div>
@@ -126,6 +130,10 @@
                     <option value="string">string</option><option value="number">number</option><option value="boolean">boolean</option><option value="null">null</option><option value="object">object</option><option value="array">array</option>
                 </select>
             </div>
+            <div id="view-switch" class="view-switch template-control" role="radiogroup" aria-label="View of the tree">
+                <button type="button" role="radio" data-view-set="example" aria-checked="true" title="The data filled with the examples">Examples</button>
+                <button type="button" role="radio" data-view-set="template" aria-checked="false" tabindex="-1" title="The template with its placeholders as written">Template</button>
+            </div>
             <div class="tree-search" role="search">
                 <input id="tree-search" type="search" placeholder="Search keys and values" aria-label="Search keys and values" spellcheck="false">
                 <span id="tree-hits" class="muted" aria-live="polite"></span>
@@ -139,10 +147,13 @@
                 <div id="path" class="path-row" data-no-i18n></div>
                 <button type="button" class="button small" id="path-copy" title="Copy the path of the selected value">Copy path</button>
             </div>
+            <div id="view-note" class="view-note template-control" role="status" hidden>The examples could not be filled in - the tree shows the template</div>
         </div>
     </section>
 
-    <aside class="pane inspector" aria-label="Side panel">
+    <button type="button" class="tool panel-toggle" id="btn-panel" aria-controls="side-panel" aria-expanded="false" title="Show or hide the side panel" aria-label="Side panel"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+
+    <aside class="pane inspector" id="side-panel" aria-label="Side panel">
         <div class="pane-header tabs" role="tablist">
             <button type="button" role="tab" data-itab="node" aria-selected="true" title="The selected key and value">Value</button>
             <button type="button" role="tab" data-itab="insert" aria-selected="false" title="New entries and pieces of code">Insert</button>
@@ -310,6 +321,6 @@ addEventListener('message', e =&gt; {
 
 <?php include __DIR__ . '/footer.php'; ?>
 
-<script type="module" src="/js/app.js?v=44"></script>
+<script type="module" src="/js/app.js?v=45"></script>
 </body>
 </html>

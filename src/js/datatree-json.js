@@ -15,7 +15,7 @@
  * the whole JSON grammar together.
  */
 
-import { MAX_DEPTH, createNode } from './datatree-core.js?v=2';
+import { MAX_DEPTH, createNode } from './datatree-core.js?v=3';
 
 /** The notes for features that are not plain JSON, each said once per document. */
 const NOTES = {

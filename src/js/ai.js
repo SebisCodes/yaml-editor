@@ -17,7 +17,8 @@
 import { openDialog } from './dialogs.js?v=5';
 import { readHash, findLinks, readLink } from './ai-links.js?v=2';
 import { createTabChannel, createRequestId, findEditorTab, sendToTab } from './ai-tabs.js?v=3';
-import { getPrompt } from './ai-prompt.js?v=2';
+import { isKeyInPrompt, isAnswerFromPage, getPageTexts } from './prompt-parts.js?v=1';
+import { getPrompt } from './ai-prompt.js?v=3';
 import { copyText } from './ai-copy.js?v=2';
 
 const BROKEN = 'The document in this link is incomplete or damaged. If the AI\'s link was split over several lines (as in a terminal), copy the whole answer and paste it into the editor with Ctrl+V - the editor joins the lines.';
@@ -33,6 +34,8 @@ const FRAMED_STEP = 'The AI answers with a link: <b>paste its whole answer below
  * @property {function(): Promise<*>} [fetchKey] - asks the page for the session's key while there is none.
  * @property {function(): boolean} [hasValidKey] - true when the session has its key.
  * @property {function(string): boolean} [tryOpenDocument] - opens a stored document in this tab; false when there is none.
+ * @property {function(function(): void): void} [handleAiClick] - a press on the AI button: the page's own dialog when it shows one, else the function given (the editor's dialog).
+ * @property {function(): string} [getKeyDecline] - the page's text for a declined key request, "" without.
  */
 
 /**
@@ -73,7 +76,7 @@ export function createAi(editor) {
  * @returns {AiArea} the state.
  */
 function createArea(editor) {
-    const filled = { getRemote: () => null, fetchKey: () => Promise.resolve(null), hasValidKey: () => false, tryOpenDocument: () => false, ...editor };
+    const filled = { getRemote: () => null, fetchKey: () => Promise.resolve(null), hasValidKey: () => false, tryOpenDocument: () => false, handleAiClick: openEditorDialog => openEditorDialog(), getKeyDecline: () => '', ...editor };
     const framed = window.parent !== window;
     const stepLink = document.getElementById('ai-step-link');
     if (framed) stepLink.innerHTML = FRAMED_STEP;
@@ -91,11 +94,7 @@ function createArea(editor) {
  */
 function connectDialog() {
     const pasteField = document.getElementById('ai-paste');
-    document.getElementById('btn-ai').addEventListener('click', () => {
-        document.getElementById('ai-cur').textContent = area.editor.getState().name;
-        updateRemote();
-        openDialog(area.dialog);
-    });
+    document.getElementById('btn-ai').addEventListener('click', () => area.editor.handleAiClick(openAiDialog));
     document.getElementById('ai-copy').addEventListener('click', copyPrompt);
     /**
      * Takes an answer with editor links pasted anywhere outside another field (a paste handler).
@@ -187,34 +186,50 @@ function updateRemote() {
     const remote = area.editor.getRemote();
     const stepLink = document.getElementById('ai-step-link');
     document.getElementById('ai-remote').hidden = !remote;
-    document.getElementById('ai-privacy').textContent = remote ? `The AI sends the document to ${remote.label} with a key that only works for this session. What you paste into your AI is handled by its provider.` : area.privacyText;
+    document.getElementById('ai-privacy').textContent = !remote ? area.privacyText : isAnswerFromPage(remote)
+        ? `${remote.label} gives the AI its instructions for answering. What you paste into your AI is handled by its provider.`
+        : `The AI sends the document to ${remote.label} with a key that only works for this session. What you paste into your AI is handled by its provider.`;
     if (!remote) { stepLink.innerHTML = area.stepHtml; return; }
     document.getElementById('ai-remote-host').textContent = remote.site && remote.site !== remote.label ? `${remote.label} (${remote.site})` : remote.label;
     const details = document.getElementById('ai-remote-details');
-    details.hidden = !remote.prompt;
+    const pageTexts = getPageTexts(remote);
+    details.hidden = !pageTexts;
     details.querySelector('span').textContent = remote.site || remote.label;
-    document.getElementById('ai-remote-prompt').textContent = remote.prompt || '';
-    stepLink.textContent = `The AI sends its result to ${remote.label} by itself, and it opens here. If it answers with a link, paste its answer below.`;
-    document.getElementById('ai-key-exp').textContent = !remote.endpoint ? '' : !remote.key ? '(no key yet)' : '(key valid while the editor is open)';
+    document.getElementById('ai-remote-prompt').textContent = pageTexts;
+    stepLink.textContent = isAnswerFromPage(remote)
+        ? `The AI answers as ${remote.label} describes in the prompt. If it answers with a link, paste its answer below.`
+        : `The AI sends its result to ${remote.label} by itself, and it opens here. If it answers with a link, paste its answer below.`;
+    document.getElementById('ai-key-exp').textContent = !isKeyInPrompt(remote) ? '' : !remote.key ? '(no key yet)' : '(key valid while the editor is open)';
 }
 
 /**
- * Copies the prompt; with the page's server and no key yet, it asks the page for the key
- * first, and without one the prompt asks the AI for a link.
+ * Opens the AI dialog with the name of the open document and the page's AI settings.
+ * @returns {void}
+ */
+function openAiDialog() {
+    document.getElementById('ai-cur').textContent = area.editor.getState().name;
+    updateRemote();
+    openDialog(area.dialog);
+}
+
+/**
+ * Copies the prompt; when it tells the AI to post to the page's server and there is no key yet,
+ * it asks the page for the key first, and without one the prompt asks the AI for a link. A page
+ * that declines the key gives the message shown after copying.
  * @returns {Promise<void>} resolves when the prompt is copied.
  */
 async function copyPrompt() {
     const { editor, dialog, framed } = area;
-    let remote = editor.getRemote();
-    if (remote && remote.endpoint && !editor.hasValidKey()) {
+    let remote = editor.getRemote(), declined = '';
+    if (isKeyInPrompt(remote) && !editor.hasValidKey()) {
         await editor.fetchKey();
         remote = editor.getRemote();
         updateRemote();
-        if (remote && !editor.hasValidKey()) editor.showToast(`No key from ${remote.label} - the prompt asks the AI for a link instead`);
+        if (remote && !editor.hasValidKey()) { declined = editor.getKeyDecline(); editor.showToast(declined || `No key from ${remote.label} - the prompt asks the AI for a link instead`); }
     }
     const makeNew = dialog.querySelector('[name=ai-target]:checked').value === 'new';
     const text = getPrompt({ ...editor.getState(), framed, remote: remote && remote.endpoint && !editor.hasValidKey() ? { ...remote, key: '' } : remote }, makeNew);
-    copyText(text, area.dialog, area.editor.showToast, () => { editor.showToast(remote && editor.hasValidKey() ? `Prompt copied - the AI sends its result to ${remote.label}` : 'Prompt copied - paste it into your AI and say what it should write'); dialog.close(); });
+    copyText(text, area.dialog, area.editor.showToast, () => { editor.showToast(declined || (remote && editor.hasValidKey() && !isAnswerFromPage(remote) ? `Prompt copied - the AI sends its result to ${remote.label}` : 'Prompt copied - paste it into your AI and say what it should write')); dialog.close(); });
 }
 
 /**

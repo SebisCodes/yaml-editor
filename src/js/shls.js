@@ -28,6 +28,12 @@
  *    nested key, ignored), so the editor can point from the data to the code and
  *    back and report problems with their line.
  *
+ * A template (a text whose placeholders a server fills in) may hold control lines:
+ * lines of section tags only, which the server removes. parseModel() reads them
+ * when the caller passes isControlLine: the reader passes over each control line
+ * as if it were removed (role "control"); one between complete records or
+ * sections is in its place, one inside a key block or a record is a problem.
+ *
  * Writing, formatShls() (SHLSEncoder): Python's str() for every value; a dict in
  * a record becomes a list with one record, a plain value in a list a record
  * with the key "Value"; the data passed in stays unchanged.
@@ -87,6 +93,8 @@ const VALUE_LIKE_DATE = /^\d{4}-\d{2}-\d{2}/;
 /** The spaces and tabs at the start of a code line. */
 const LEADING_INDENTATION = /^[ \t]*/;
 
+/** The message of a control line inside a key block or a record. */
+const MISPLACED_CONTROL_LINE = 'A line of section tags belongs between complete records';
 /** The text of a nested key or value that the editor shows as a placeholder. */
 const PLACEHOLDER_TEXT = 'PH';
 /** The highlighting class of each line role; other roles are values. */
@@ -132,6 +140,7 @@ const VALUE_WHITESPACE_RUN = /[\s\x1c-\x1e\x85]+/g;
  * @property {string} value - the stripped text of the line.
  * @property {ShlsRecord[]|null} sub - the records of a nested list, null for a plain value.
  * @property {number} end - the last line of the field, its nested records included.
+ * @property {number} [controlEnd] - in a template, the last control line the nested list read after its records.
  */
 
 /**
@@ -200,6 +209,13 @@ const VALUE_WHITESPACE_RUN = /[\s\x1c-\x1e\x85]+/g;
  * @typedef {object} RecordOwner
  * @property {string} name - the section name or the nested key.
  * @property {ShlsKey[]|null|undefined} keys - the keys of its records.
+ */
+
+/**
+ * How parseModel() reads a text.
+ * @typedef {object} ModelOptions
+ * @property {?function(string): boolean} [isControlLine] - tells whether a line is a control line of a
+ *     template (section tags only); without it every line is read as SHLS.
  */
 
 /**
@@ -408,13 +424,15 @@ function getIndentLevel(text) {
 }
 
 /**
- * Returns the spaces per level: the indentation of the first indented line with text.
+ * Returns the spaces per level: the indentation of the first indented line with text (control
+ * lines of a template passed over).
  * @param {PythonLine[]} lines - the lines.
+ * @param {?function(string): boolean} isControlLine - tells whether a line is a control line, or null.
  * @returns {number} the spaces per level, 0 when no line with text is indented.
  */
-function getIndentUnit(lines) {
+function getIndentUnit(lines, isControlLine) {
     for (const line of lines) {
-        if (getPythonStripped(line.text) === '') continue;
+        if (getPythonStripped(line.text) === '' || (isControlLine !== null && isControlLine(line.text))) continue;
         const level = getIndentLevel(line.text);
         if (level) return level;
     }
@@ -432,14 +450,20 @@ class ShlsDecoder {
     /**
      * Prepares the decoder for the lines of one text.
      * @param {PythonLine[]} lines - the lines as splitPythonLines() returns them.
+     * @param {?function(string): boolean} [isControlLine=null] - tells whether a line is a control line of a
+     *     template; null reads every line as SHLS.
      * @returns {void}
      */
-    constructor(lines) {
+    constructor(lines, isControlLine = null) {
         this.lines = lines;
+        /** @type {?function(string): boolean} tells whether a line is a control line of a template. */
+        this.isControlLine = isControlLine;
+        /** @type {number[]} control lines inside a key block or a record. */
+        this.misplacedControlLines = [];
         /** @type {number} the next line to read. */
         this.position = 0;
         /** @type {number} spaces per level: the indentation of the first indented line with text. */
-        this.indentUnit = getIndentUnit(lines);
+        this.indentUnit = getIndentUnit(lines, isControlLine);
         /** @type {Map<number, string>} index of a Python line -> role. */
         this.roles = new Map();
         /** @type {number[]} non-empty lines that were not used. */
@@ -477,6 +501,67 @@ class ShlsDecoder {
     }
 
     /**
+     * Tells whether a line is a control line of a template.
+     * @param {number|null} index - the Python line, null past the end.
+     * @returns {boolean} true for a line of section tags only, while control lines are read.
+     */
+    isControlLineAt(index) {
+        return this.isControlLine !== null && index !== null && this.isControlLine(this.lines[index].text);
+    }
+
+    /**
+     * Returns the next line with text that is not a control line (blank lines and control lines
+     * are passed over); the data levels of a template are read from it.
+     * @returns {Array<number|null>} [level, index] of that line, or [null, null] at the end.
+     */
+    findNextDataLine() {
+        if (this.isControlLine === null) return this.findNextTextLine();
+        let index = this.position;
+        while (index < this.lines.length && (getPythonStripped(this.lines[index].text) === '' || this.isControlLineAt(index))) index++;
+        return index === this.lines.length ? [null, null] : [getIndentLevel(this.lines[index].text), index];
+    }
+
+    /**
+     * Reads a control line: the reader passes over it, notes its role and, inside a key block or
+     * a record, its place.
+     * @param {number} index - the Python line.
+     * @param {boolean} isInPlace - true between complete records or sections.
+     * @returns {void}
+     */
+    readControlLine(index, isInPlace) {
+        this.position = Math.max(this.position, index + 1);
+        this.roles.set(index, 'control');
+        if (!isInPlace) this.misplacedControlLines.push(index);
+    }
+
+    /**
+     * Tells whether a blank line stands between two lines.
+     * @param {number} from - the first line to look at.
+     * @param {number} to - the line after the last one to look at.
+     * @returns {boolean} true when one of the lines is blank.
+     */
+    hasBlankLineBetween(from, to) {
+        for (let index = from; index < to; index++) if (getPythonStripped(this.lines[index].text) === '') return true;
+        return false;
+    }
+
+    /**
+     * Returns the last line of a run of lines read, without the control lines at its end and the
+     * blank lines just above them.
+     * @param {number} endIndex - the last line read.
+     * @param {number} minIndex - the line not to go above.
+     * @returns {number} the last line read that holds data; endIndex when it is no control line.
+     */
+    getLastDataLine(endIndex, minIndex) {
+        let index = endIndex;
+        while (index > minIndex && this.roles.get(index) === 'control') {
+            index--;
+            while (index > minIndex && getPythonStripped(this.lines[index].text) === '') index--;
+        }
+        return index;
+    }
+
+    /**
      * Reads the whole text: SHLSDecoder().decode().
      * @returns {Map<string, Array<Map<string, *>>>} the sections, each a list of records.
      */
@@ -488,6 +573,7 @@ class ShlsDecoder {
             const line = this.lines[lineIndex].text;
             const value = getPythonStripped(line);
             if (value === '') continue;
+            if (this.isControlLineAt(lineIndex)) { this.readControlLine(lineIndex, true); continue; }
             if (getIndentLevel(line) === 0) {
                 section = value;
                 this.roles.set(lineIndex, 'section');
@@ -508,12 +594,12 @@ class ShlsDecoder {
      * @returns {void}
      */
     readSectionBody(data, section, lineIndex) {
-        let [nextLevel, nextIndex] = this.findNextTextLine();
+        let [nextLevel, nextIndex] = this.findNextDataLine();
         if (!nextLevel) return;
         if (!this.keyBlocks.has(section)) {
             this.readKeyBlock(section, nextLevel, nextIndex, lineIndex);
             if (!data.has(section)) data.set(section, []);
-            [nextLevel] = this.findNextTextLine();
+            [nextLevel] = this.findNextDataLine();
             if (!nextLevel) return;
         }
         if (!data.has(section)) data.set(section, []);
@@ -531,7 +617,7 @@ class ShlsDecoder {
      * @returns {void}
      */
     readKeyBlock(section, level, firstIndex, lineIndex) {
-        if (firstIndex > lineIndex + 1) this.keyBlocksAfterBlank.push({ sec: section, line: firstIndex });
+        if (this.hasBlankLineBetween(lineIndex + 1, firstIndex)) this.keyBlocksAfterBlank.push({ sec: section, line: firstIndex });
         const keys = this.readKeys(level, true);
         this.keyBlocks.set(section, { keys, start: keys.length ? keys[0].line : firstIndex, end: this.position - 1 });
     }
@@ -546,6 +632,12 @@ class ShlsDecoder {
         const keys = [];
         for (;;) {
             const [level, index] = this.findNextTextLine();
+            if (this.isControlLineAt(index)) {
+                const [dataLevel, dataIndex] = this.findNextDataLine();
+                if (this.isKeysEndAt(dataLevel, dataIndex, baseLevel, isKeyBlock, keys.length)) break;
+                this.readControlLines(dataIndex, false);
+                continue;
+            }
             if (level === null || level < baseLevel) break;
             if (isKeyBlock && level === baseLevel && index > this.position && keys.length) break;
             if (level > baseLevel) {
@@ -557,6 +649,31 @@ class ShlsDecoder {
             this.roles.set(index, 'key');
         }
         return keys;
+    }
+
+    /**
+     * Tells whether the keys at one level end at the control lines at the reading position: the
+     * line with data after them ends the keys as it would without the control lines.
+     * @param {number|null} level - the indentation of the line with data after the control lines, null at the end.
+     * @param {number|null} index - that line, null at the end.
+     * @param {number} baseLevel - the indentation of the keys.
+     * @param {boolean} isKeyBlock - true for the key block of a section, which ends at a blank line.
+     * @param {number} keyCount - the keys read so far at this level.
+     * @returns {boolean} true when the keys end at the control lines.
+     */
+    isKeysEndAt(level, index, baseLevel, isKeyBlock, keyCount) {
+        if (level === null || level < baseLevel) return true;
+        return isKeyBlock && level === baseLevel && keyCount > 0 && this.hasBlankLineBetween(this.position, index);
+    }
+
+    /**
+     * Reads the control lines from the reading position up to a line.
+     * @param {number} endIndex - the line after the last one to read.
+     * @param {boolean} isInPlace - true between complete records or sections.
+     * @returns {void}
+     */
+    readControlLines(endIndex, isInPlace) {
+        for (let index = this.position; index < endIndex; index++) if (this.isControlLineAt(index)) this.readControlLine(index, isInPlace);
     }
 
     /**
@@ -587,9 +704,14 @@ class ShlsDecoder {
         let values = new Map();
         let record = { fields: [] };
         let keyIndex = 0;
-        const block = { sec: section, start: this.findNextTextLine()[1], base: baseLevel, records, end: null };
+        const block = { sec: section, start: this.findNextDataLine()[1], base: baseLevel, records, end: null };
         while (keys.length) {
             const [level, index] = this.findNextTextLine();
+            if (this.isControlLineAt(index)) {
+                if (!isTopLevel && level < baseLevel) break;
+                this.readControlLine(index, keyIndex === 0);
+                continue;
+            }
             if (level === null || level < baseLevel) break;
             this.position = index + 1;
             if (level > baseLevel) { this.addIgnoredLine(index); continue; }
@@ -607,7 +729,7 @@ class ShlsDecoder {
             data.push(values);
             records.push(record);
         }
-        block.end = this.position - 1;
+        block.end = this.getLastDataLine(this.position - 1, block.start ?? 0);
         if (isTopLevel) this.dataBlocks.push(block);
         this.lastRecords = records;
         return data;
@@ -634,7 +756,7 @@ class ShlsDecoder {
         this.roles.set(index, 'nested');
         const field = { key: key.name, line: index, value, sub: [], end: index };
         record.fields.push(field);
-        const [nextLevel] = this.findNextTextLine();
+        const [nextLevel] = this.findNextDataLine();
         if (nextLevel === null || nextLevel <= baseLevel) {
             values.set(key.name, []);
             return;
@@ -642,6 +764,7 @@ class ShlsDecoder {
         values.set(key.name, this.readRecords(key.sub, nextLevel, section, false));
         field.sub = this.lastRecords;
         field.end = this.position - 1;
+        if (this.roles.get(field.end) === 'control') field.controlEnd = field.end;
     }
 }
 
@@ -1092,13 +1215,14 @@ function isValueLike(text) {
  * key blocks and records, the role of every line and the problems. A
  * section's records are those of all its data blocks.
  * @param {string} code - the SHLS text.
+ * @param {ModelOptions} [options={}] - how to read the text: the control lines of a template.
  * @returns {ShlsModel} the model.
  */
-export function parseModel(code) {
+export function parseModel(code, options = {}) {
     const codeLines = code.split('\n');
     const pythonLines = splitPythonLines(code);
     const context = { codeLines, toCodeLine: createLineMapper(getCodeLineNumbers(code, pythonLines), codeLines.length) };
-    const decoder = new ShlsDecoder(pythonLines);
+    const decoder = new ShlsDecoder(pythonLines, options.isControlLine || null);
     const data = decoder.readSections();
     const roles = getLineRoles(decoder, context);
     const sections = createModelSections(decoder, context);
@@ -1203,7 +1327,7 @@ function convertRecordsToCode(records, context) {
  */
 function convertRecordToCode(record, context) {
     const toCodeLine = context.toCodeLine;
-    const fields = record.fields.map(field => ({ key: field.key, line: toCodeLine(field.line), value: field.value, sub: field.sub ? convertRecordsToCode(field.sub, context) : null, end: toCodeLine(field.end) }));
+    const fields = record.fields.map(field => ({ key: field.key, line: toCodeLine(field.line), value: field.value, sub: field.sub ? convertRecordsToCode(field.sub, context) : null, end: toCodeLine(field.end), ...(field.controlEnd != null && { controlEnd: toCodeLine(field.controlEnd) }) }));
     const lastField = fields[fields.length - 1];
     return { fields, short: record.short || 0, start: fields.length ? fields[0].line : null, end: fields.length ? findLastTextLine(context.codeLines, lastField.end, lastField.line) : null };
 }
@@ -1232,9 +1356,9 @@ function findLastTextLine(codeLines, endLine, minLine) {
  */
 function getProblems(decoder, sections, roles, unit, context) {
     const problems = [];
-    addIndentationProblems(problems, context.codeLines, unit);
+    addIndentationProblems(problems, context.codeLines, unit, roles);
     addDecoderProblems(problems, decoder, roles, context);
-    for (const section of sections) addSectionProblems(problems, section, context.codeLines);
+    for (const section of sections) addSectionProblems(problems, section, context.codeLines, roles);
     problems.sort(getProblemOrder);
     return getUniqueProblems(problems);
 }
@@ -1256,7 +1380,7 @@ function createProblem(line, kind, msg) {
  * @param {ShlsProblem} second - the other problem.
  * @returns {number} negative, zero or positive, as Array.prototype.sort needs.
  */
-function getProblemOrder(first, second) {
+export function getProblemOrder(first, second) {
     return first.line - second.line || (first.kind === 'error' ? -1 : 1);
 }
 
@@ -1285,17 +1409,19 @@ function formatSpaces(count) {
 }
 
 /**
- * Adds the indentation problems: whole levels of spaces, no tabs, one level at a time.
+ * Adds the indentation problems: whole levels of spaces, no tabs, one level at a time. Control
+ * lines of a template are passed over, as the server removes them.
  * @param {ShlsProblem[]} problems - the list to add to.
  * @param {string[]} codeLines - the code lines.
  * @param {number} unit - the spaces per level.
+ * @param {string[]} roles - the role of every code line.
  * @returns {void}
  */
-function addIndentationProblems(problems, codeLines, unit) {
+function addIndentationProblems(problems, codeLines, unit, roles) {
     let previousLevel = 0, hasPreviousText = false;
     for (let line = 0; line < codeLines.length; line++) {
         const text = codeLines[line];
-        if (!text.trim()) continue;
+        if (!text.trim() || roles[line] === 'control') continue;
         const indentation = LEADING_INDENTATION.exec(text)[0];
         if (indentation.includes('\t')) {
             problems.push(createProblem(line, 'error', 'A tab in the indentation - SHLS counts spaces only, so this line is read as a section name'));
@@ -1310,7 +1436,8 @@ function addIndentationProblems(problems, codeLines, unit) {
 }
 
 /**
- * Adds the problems the decoder noted: ignored lines and key blocks after blank lines.
+ * Adds the problems the decoder noted: ignored lines, key blocks after blank lines and control
+ * lines inside a key block or a record.
  * @param {ShlsProblem[]} problems - the list to add to.
  * @param {ShlsDecoder} decoder - the decoder after reading.
  * @param {string[]} roles - the role of every code line.
@@ -1325,6 +1452,7 @@ function addDecoderProblems(problems, decoder, roles, context) {
     for (const keyBlock of decoder.keyBlocksAfterBlank) {
         problems.push(createProblem(toCodeLine(keyBlock.line), 'warn', `"${keyBlock.sec}" has no key block yet - these lines are read as its keys (the key block follows the section name directly)`));
     }
+    for (const index of decoder.misplacedControlLines) problems.push(createProblem(toCodeLine(index), 'error', MISPLACED_CONTROL_LINE));
 }
 
 /**
@@ -1332,12 +1460,13 @@ function addDecoderProblems(problems, decoder, roles, context) {
  * @param {ShlsProblem[]} problems - the list to add to.
  * @param {ShlsSection} section - the section.
  * @param {string[]} codeLines - the code lines.
+ * @param {string[]} roles - the role of every code line.
  * @returns {void}
  */
-function addSectionProblems(problems, section, codeLines) {
+function addSectionProblems(problems, section, codeLines, roles) {
     if (section.keys) addKeyProblems(problems, section.keys);
-    if (section.keys && section.keyEnd != null) addKeyBlockGapProblem(problems, section, codeLines);
-    for (const block of section.blocks) addRecordProblems(problems, block.records, section, section.keys ? section.keys.length : 0, codeLines);
+    if (section.keys && section.keyEnd != null) addKeyBlockGapProblem(problems, section, codeLines, roles);
+    for (const block of section.blocks) addRecordProblems(problems, block.records, section, section.keys ? section.keys.length : 0, codeLines, roles);
 }
 
 /**
@@ -1357,17 +1486,21 @@ function addKeyProblems(problems, keys) {
 }
 
 /**
- * Adds a problem when more than one blank line separates the key block from indented records.
+ * Adds a problem when more than one blank line separates the key block from indented records
+ * (control lines of a template are passed over).
  * @param {ShlsProblem[]} problems - the list to add to.
  * @param {ShlsSection} section - the section with its key block.
  * @param {string[]} codeLines - the code lines.
+ * @param {string[]} roles - the role of every code line.
  * @returns {void}
  */
-function addKeyBlockGapProblem(problems, section, codeLines) {
+function addKeyBlockGapProblem(problems, section, codeLines, roles) {
     const afterKeys = section.keyEnd + 1;
-    let next = afterKeys;
-    while (next < codeLines.length && !codeLines[next].trim()) next++;
-    const blankLines = next - afterKeys;
+    let next = afterKeys, blankLines = 0;
+    while (next < codeLines.length && (!codeLines[next].trim() || roles[next] === 'control')) {
+        if (!codeLines[next].trim()) blankLines++;
+        next++;
+    }
     if (blankLines > 1 && next < codeLines.length && /^ /.test(codeLines[next])) {
         problems.push(createProblem(afterKeys, 'warn', `${blankLines} blank lines after the key block of "${section.name}" - exactly one belongs there`));
     }
@@ -1380,18 +1513,19 @@ function addKeyBlockGapProblem(problems, section, codeLines) {
  * @param {RecordOwner} owner - the section or nested key they belong to.
  * @param {number} keyCount - the number of keys a record has.
  * @param {string[]} codeLines - the code lines.
+ * @param {string[]} roles - the role of every code line.
  * @returns {void}
  */
-function addRecordProblems(problems, records, owner, keyCount, codeLines) {
+function addRecordProblems(problems, records, owner, keyCount, codeLines, roles) {
     for (const record of records) {
         if (record.short) problems.push(createProblem(record.start, 'warn', `This record of "${owner.name}" has ${record.fields.length} of ${keyCount} values - its last keys are missing in the data`));
     }
-    addRecordSeparatorProblems(problems, records, owner, keyCount, codeLines);
+    addRecordSeparatorProblems(problems, records, owner, keyCount, codeLines, roles);
     for (const record of records) {
         for (const field of record.fields) {
             if (!field.sub) continue;
             const nestedKeys = (findKeyByName(owner.keys, field.key) || {}).sub;
-            addRecordProblems(problems, field.sub, { name: field.key, keys: nestedKeys }, nestedKeys ? nestedKeys.length : 0, codeLines);
+            addRecordProblems(problems, field.sub, { name: field.key, keys: nestedKeys }, nestedKeys ? nestedKeys.length : 0, codeLines, roles);
         }
     }
 }
@@ -1405,28 +1539,33 @@ function addRecordProblems(problems, records, owner, keyCount, codeLines) {
  * @param {RecordOwner} owner - the section or nested key they belong to.
  * @param {number} keyCount - the number of keys a record has.
  * @param {string[]} codeLines - the code lines.
+ * @param {string[]} roles - the role of every code line.
  * @returns {void}
  */
-function addRecordSeparatorProblems(problems, records, owner, keyCount, codeLines) {
+function addRecordSeparatorProblems(problems, records, owner, keyCount, codeLines, roles) {
     const starts = records.slice(1).map(record => record.start);
-    const separated = starts.filter(line => hasBlankLineBefore(codeLines, line)).length;
+    const separated = starts.filter(line => hasBlankLineBefore(codeLines, line, roles)).length;
     if (!(records.length >= 2 && separated >= 1 && separated >= starts.length - 1 && separated < starts.length)) return;
     records.forEach((record, recordIndex) => {
-        if (recordIndex && !hasBlankLineBefore(codeLines, record.start)) problems.push(createProblem(record.start, 'warn', `No blank line before this record of "${owner.name}" while the others have one - the record above may have more values than the key block (${keyCount})`));
+        if (recordIndex && !hasBlankLineBefore(codeLines, record.start, roles)) problems.push(createProblem(record.start, 'warn', `No blank line before this record of "${owner.name}" while the others have one - the record above may have more values than the key block (${keyCount})`));
         record.fields.forEach((field, fieldIndex) => {
-            if (fieldIndex && hasBlankLineBefore(codeLines, field.line) && !(record.fields[fieldIndex - 1].sub)) problems.push(createProblem(field.line, 'warn', `A blank line inside a record of "${owner.name}" - the record may have fewer values than the key block (${keyCount})`));
+            if (fieldIndex && hasBlankLineBefore(codeLines, field.line, roles) && !(record.fields[fieldIndex - 1].sub)) problems.push(createProblem(field.line, 'warn', `A blank line inside a record of "${owner.name}" - the record may have fewer values than the key block (${keyCount})`));
         });
     });
 }
 
 /**
- * Tells whether the line above a line is blank.
+ * Tells whether the line above a line is blank; control lines of a template between them are
+ * passed over.
  * @param {string[]} codeLines - the code lines.
  * @param {number|null} line - the line.
+ * @param {string[]} roles - the role of every code line.
  * @returns {boolean} true when the line is not the first and the one above has no text.
  */
-function hasBlankLineBefore(codeLines, line) {
-    return line > 0 && !(codeLines[line - 1] || '').trim();
+function hasBlankLineBefore(codeLines, line, roles) {
+    let above = line - 1;
+    while (above > 0 && roles[above] === 'control') above--;
+    return above >= 0 && line > 0 && roles[above] !== 'control' && !(codeLines[above] || '').trim();
 }
 
 /**
@@ -1605,11 +1744,13 @@ export function getKeyEnd(key) {
 }
 
 /**
- * Returns the last line of a field, its nested records included.
+ * Returns the last line of a field, its nested records included (in a template also the control
+ * lines its nested list read after them).
  * @param {ShlsField} field - the field.
  * @returns {number} the line.
  */
 export function getFieldEnd(field) {
+    if (field.controlEnd != null) return field.controlEnd;
     if (!field.sub || !field.sub.length) return field.line;
     const lastRecord = field.sub[field.sub.length - 1];
     return lastRecord.end ?? field.line;

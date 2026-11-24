@@ -90,6 +90,12 @@ export const MAX_DEPTH = 1000;
  * @property {function(string, TreeEdit): EditResult} applyEdit - one change from the tree as new code.
  * @property {function(string): string} highlight - the colored code as HTML.
  * @property {function(string, *): string} [mergeInto] - adds data to the root of the code.
+ * @property {function(string, Array<object>): string[]} [findTemplateRoles] - the role of each template tag
+ *   of the code (text, value, key or section; datatree-template.js).
+ * @property {function(string, Array<object>): Array<object>} [findTemplatePlaces] - the role of each template
+ *   tag with the kind of text it stands in (datatree-template-roles.js TagPlace).
+ * @property {function(string, object, string, string): string} [writeTemplateFill] - writes an example for the
+ *   place of a value tag in the format (datatree-examples.js FillWriter).
  */
 
 /**

@@ -4,10 +4,11 @@
  * and remove it. A change in a field is one edit of the code (tree-panel.js).
  */
 
-import { escapeHtml, formatPath, getAliasTarget, TYPES } from './datatree.js?v=12';
+import { escapeHtml, formatPath, getAliasTarget, TYPES } from './datatree.js?v=13';
 import { state, ui, areas, showToast, getElement, formatByteSize, getByteSize, hasData } from './state.js?v=2';
-import { getLineIndex, getColumnIndex } from './code-view.js?v=3';
-import { editCodeFromTree, runNodeAction, getTypedValue } from './tree-panel.js?v=3';
+import { getLineIndex, getColumnIndex } from './code-view.js?v=4';
+import { editCodeFromTree, runNodeAction, getTypedValue } from './tree-panel.js?v=4';
+import { getTreeCodeRange } from './tree-views.js?v=1';
 
 /** The types the type choice above the tree shows for a value. */
 const TYPE_LABEL = { string: 'string', number: 'number', boolean: 'boolean', null: 'null', object: 'object', array: 'array', alias: 'alias' };
@@ -71,10 +72,12 @@ function renderValueForm(info) {
  * @returns {string} "2 keys · line 3, column 1 · 40 B".
  */
 function getNodeInfo(node, entry, target, isBox) {
-    const size = getByteSize(state.code.slice(entry ? entry.start : node.start, node.end));
+    const range = getTreeCodeRange(entry ? entry.start : node.start, node.end);
+    const start = getTreeCodeRange(node.start, node.end).start;
+    const size = getByteSize(state.code.slice(range.start, range.end));
     const count = target.entries?.length;
     const entries = isBox ? `${count} ${target.type === 'object' ? (count === 1 ? 'key' : 'keys') : count === 1 ? 'entry' : 'entries'} · ` : '';
-    return `${entries}line ${getLineIndex(node.start) + 1}, column ${getColumnIndex(node.start) + 1} · ${formatByteSize(size)}`;
+    return `${entries}line ${getLineIndex(start) + 1}, column ${getColumnIndex(start) + 1} · ${formatByteSize(size)}`;
 }
 
 /**

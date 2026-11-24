@@ -10,10 +10,16 @@
  *    allOf / anyOf / oneOf / not / if);
  * 3. stop with "not checked" when the walk needs more than a million steps
  *    (aliases and a schema that refers to itself can make it exponential).
+ *
+ * In a template (datatree-template.js) a value is checked once it is filled: a value written
+ * with a placeholder matches every schema, a string that holds a tag is checked for its type,
+ * a key that holds a tag for nothing; the counts and combinations that depend on such a value,
+ * a key or a section (required, items and keys counted, uniqueItems, contains, oneOf, not, if)
+ * are checked on what the template fixes.
  */
 
-import { getAliasTarget } from './datatree-core.js?v=2';
-import { VALUE_LIMIT, TooManyValues, getPlainValue, getEffectiveEntries } from './datatree-values.js?v=3';
+import { getAliasTarget } from './datatree-core.js?v=3';
+import { VALUE_LIMIT, TooManyValues, getPlainValue, getEffectiveEntries } from './datatree-values.js?v=4';
 
 /** The checks of the "format" keyword. */
 const FORMATS = {
@@ -86,6 +92,7 @@ export function getSchemaProblems(root, schema) {
     const problems = [];
     const budget = { left: VALUE_LIMIT };
     const told = new Set();
+    const templateParts = new WeakMap();
     /**
      * Returns the single problem that says the data is not checked.
      * @param {string} reason - why.
@@ -140,6 +147,7 @@ export function getSchemaProblems(root, schema) {
     function checkNode(node, subschema, depth, sink) {
         if (--budget.left < 0) throw new TooManyValues();
         if (subschema === true || subschema === undefined || subschema === null) return;
+        if ((getAliasTarget(node) || node).placeholder === 'value') return;
         if (depth > MAX_SCHEMA_DEPTH) return;
         const tell = sink || addProblem;
         if (subschema === false) { tell(node, 'no value is allowed here'); return; }
@@ -155,8 +163,8 @@ export function getSchemaProblems(root, schema) {
         const type = resolved.type === 'alias' ? 'null' : resolved.type;
         const check = { node, resolved, value, type, schema: subschema, depth, sink, tell };
         if (!checkType(check)) return;
-        checkValueKeywords(check);
-        if (type === 'string') checkStringKeywords(check);
+        if (resolved.placeholder !== 'text') checkValueKeywords(check);
+        if (type === 'string' && resolved.placeholder !== 'text') checkStringKeywords(check);
         if (type === 'number') checkNumberKeywords(check);
         if (type === 'object') checkObjectKeywords(check);
         if (type === 'array') checkArrayKeywords(check);
@@ -238,15 +246,30 @@ export function getSchemaProblems(root, schema) {
     function checkObjectKeywords({ node, resolved, schema: subschema, depth, sink, tell }) {
         const entries = getEffectiveEntries(resolved);
         const keys = entries.map(entry => entry.key);
+        if (resolved.repeated || entries.some(entry => entry.placeholderKey)) { checkPropertyValues(entries, subschema, depth, sink, tell); return; }
         if (Array.isArray(subschema.required)) for (const key of subschema.required) if (!keys.includes(key)) tell(node, `"${key}" is missing (required)`, resolved.start, resolved.start + 1);
         if (typeof subschema.minProperties === 'number' && keys.length < subschema.minProperties) tell(node, `at least ${subschema.minProperties} keys (minProperties)`);
         if (typeof subschema.maxProperties === 'number' && keys.length > subschema.maxProperties) tell(node, `at most ${subschema.maxProperties} keys (maxProperties)`);
         if (subschema.dependentRequired && typeof subschema.dependentRequired === 'object') {
             for (const [key, needed] of Object.entries(subschema.dependentRequired)) if (keys.includes(key) && Array.isArray(needed)) for (const other of needed) if (!keys.includes(other)) tell(node, `"${key}" needs "${other}" as well (dependentRequired)`, resolved.start, resolved.start + 1);
         }
+        checkPropertyValues(entries, subschema, depth, sink, tell);
+    }
+
+    /**
+     * Checks every entry with a fixed key against properties, patternProperties, additionalProperties
+     * and propertyNames; a key that holds a template tag is checked once it is filled.
+     * @param {DataEntry[]} entries - the entries.
+     * @param {object} subschema - the mapping's schema.
+     * @param {number} depth - how deep in the schema.
+     * @param {function|null} sink - passed on to deeper checks.
+     * @param {function(DataNode, string, number=, number=): void} tell - reports a problem.
+     * @returns {void}
+     */
+    function checkPropertyValues(entries, subschema, depth, sink, tell) {
         const properties = subschema.properties && typeof subschema.properties === 'object' ? subschema.properties : {};
         const patterns = subschema.patternProperties && typeof subschema.patternProperties === 'object' ? Object.entries(subschema.patternProperties).map(([pattern, patternSchema]) => { try { return [new RegExp(pattern, 'u'), patternSchema]; } catch (error) { return null; } }).filter(Boolean) : [];
-        for (const entry of entries) checkProperty(entry, properties, patterns, { schema: subschema, depth, sink, tell });
+        for (const entry of entries) if (!entry.placeholderKey) checkProperty(entry, properties, patterns, { schema: subschema, depth, sink, tell });
     }
 
     /**
@@ -280,10 +303,11 @@ export function getSchemaProblems(root, schema) {
      */
     function checkArrayKeywords({ node, resolved, schema: subschema, depth, sink, tell }) {
         const items = resolved.entries;
+        if (resolved.repeated) { checkRepeatedItems(items, subschema, depth, sink, tell); return; }
         if (typeof subschema.minItems === 'number' && items.length < subschema.minItems) tell(node, `at least ${subschema.minItems} entries (minItems)`);
         if (typeof subschema.maxItems === 'number' && items.length > subschema.maxItems) tell(node, `at most ${subschema.maxItems} entries (maxItems)`);
         if (subschema.uniqueItems === true) {
-            const values = items.map(entry => getPlainValue(entry.node, new Set(), budget));
+            const values = items.filter(entry => !hasTemplatePart(entry.node)).map(entry => getPlainValue(entry.node, new Set(), budget));
             if (values.some((item, index) => values.findIndex(other => isDeepEqual(item, other)) !== index)) tell(node, 'the entries must be different (uniqueItems)');
         }
         const tuple = Array.isArray(subschema.prefixItems) ? subschema.prefixItems : Array.isArray(subschema.items) ? subschema.items : null;
@@ -294,11 +318,46 @@ export function getSchemaProblems(root, schema) {
             else if (rest !== undefined) checkNode(entry.node, rest, depth + 1, sink);
         });
         if (subschema.contains !== undefined) {
-            const hits = items.filter(entry => isValid(entry.node, subschema.contains, depth)).length;
+            const matches = items.filter(entry => isValid(entry.node, subschema.contains, depth));
             const minimum = typeof subschema.minContains === 'number' ? subschema.minContains : 1;
-            if (hits < minimum) tell(node, 'no entry matches "contains" (contains)');
-            if (typeof subschema.maxContains === 'number' && hits > subschema.maxContains) tell(node, `more than ${subschema.maxContains} entries match "contains" (maxContains)`);
+            if (matches.length < minimum) tell(node, 'no entry matches "contains" (contains)');
+            const fixedHits = typeof subschema.maxContains === 'number' ? matches.filter(entry => !hasTemplatePart(entry.node)).length : 0;
+            if (typeof subschema.maxContains === 'number' && fixedHits > subschema.maxContains) tell(node, `more than ${subschema.maxContains} entries match "contains" (maxContains)`);
         }
+    }
+
+    /**
+     * Checks the entries of a template array whose entries a section repeats or leaves out: each
+     * entry against the schema of every entry (items), without counts and places.
+     * @param {DataEntry[]} items - the entries.
+     * @param {object} subschema - the array's schema.
+     * @param {number} depth - how deep in the schema.
+     * @param {function|null} sink - passed on to deeper checks.
+     * @param {function(DataNode, string, number=, number=): void} tell - reports a problem.
+     * @returns {void}
+     */
+    function checkRepeatedItems(items, subschema, depth, sink, tell) {
+        const isTuple = Array.isArray(subschema.prefixItems) || Array.isArray(subschema.items);
+        if (isTuple || subschema.items === undefined) return;
+        items.forEach((entry, index) => {
+            if (subschema.items === false) tell(entry.node, `entry ${index} is not allowed here (items)`);
+            else checkNode(entry.node, subschema.items, depth + 1, sink);
+        });
+    }
+
+    /**
+     * Tells whether a node holds a part a template fills in: a placeholder value, a string or key
+     * that holds a tag, or entries a section repeats.
+     * @param {DataNode} node - the node.
+     * @returns {boolean} true when the node or something inside it holds such a part.
+     */
+    function hasTemplatePart(node) {
+        if (templateParts.has(node)) return templateParts.get(node);
+        templateParts.set(node, false);      // an alias cycle reads as holding no template part
+        const target = getAliasTarget(node);
+        const found = target && target !== node ? hasTemplatePart(target) : !!(node.placeholder || node.repeated) || (!!node.entries && node.entries.some(entry => entry.placeholderKey || hasTemplatePart(entry.node)));
+        templateParts.set(node, found);
+        return found;
     }
 
     /**
@@ -312,8 +371,9 @@ export function getSchemaProblems(root, schema) {
         if (Array.isArray(subschema.oneOf)) {
             const matches = subschema.oneOf.filter(part => isValid(node, part, depth)).length;
             if (matches === 0) tell(node, 'matches none of the allowed forms (oneOf)');
-            else if (matches > 1) tell(node, `matches ${matches} of the forms, but only one is allowed (oneOf)`);
+            else if (matches > 1 && !hasTemplatePart(node)) tell(node, `matches ${matches} of the forms, but only one is allowed (oneOf)`);
         }
+        if (hasTemplatePart(node)) return;
         if (subschema.not !== undefined && isValid(node, subschema.not, depth)) tell(node, 'must not match the "not" schema (not)');
         if (subschema.if !== undefined) {
             if (isValid(node, subschema.if, depth)) { if (subschema.then !== undefined) checkNode(node, subschema.then, depth + 1, sink); }

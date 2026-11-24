@@ -1,0 +1,26 @@
+# Order confirmation for <<name>>
+orderNumber: <<orderNumber>>
+customer:
+  name: <<name>>
+  street: "<<street>>"
+  postalCode: '<<postalCode>>'
+  city: <<city>>
+greeting: Dear <<name>>,
+address: <<street>> <<postalCode>>
+items:
+<<?items>>
+  - title: <<title>>
+    quantity: <<quantity>>
+    price: <<price>>
+<</?items>>
+  - title: Shipping
+    quantity: 1
+    price: 0
+<<?hasNote>>
+note: <<note>>
+<</?hasNote>>
+letter: |
+  Dear <<name>>,
+  Thank you for your order.
+tags: [order, <<tag>>]
+paid: <<paid>>

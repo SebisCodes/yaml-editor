@@ -892,3 +892,46 @@ html:lang(ko) { --lang-short: "KO"; }
     .stage .zoom > * { flex: none; }
     .stage .zoom > select { flex: 1 1 auto; min-width: 0; }
 }
+
+/* Template placeholders (?template=, theme.js marks the root with data-template): the switch of
+   the tree's views (two buttons of one width), the note over the tree and the box at the bottom
+   of the code, whose header keeps its height and whose list opens over the code. */
+:root:not([data-template]) .template-control { display: none !important; }
+.view-switch { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
+.view-switch button { height: 24px; min-width: 0; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+.view-switch button:hover { color: var(--text); background: var(--surface-2); }
+.view-switch button[aria-checked="true"] { background: var(--brand-light); color: var(--brand); }
+.view-note { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 4; max-width: calc(100% - 24px); padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--error-bg); color: var(--text); font-size: 12.5px; box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
+.view-note[hidden] { display: none; }
+.placeholder-box { position: relative; flex: none; border-top: 1px solid var(--border); background: var(--surface); }
+.placeholder-header { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 12px; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.placeholder-header:hover { background: var(--surface-2); }
+.placeholder-header .arrow { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.placeholder-header[aria-expanded="true"] .arrow { transform: rotate(180deg); }
+.placeholder-count { margin-left: auto; color: var(--muted); font-weight: 400; }
+.placeholder-list { position: absolute; left: 0; right: 0; bottom: 100%; z-index: 5; max-height: min(320px, 45vh); overflow-y: auto; padding: 4px; border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -8px 20px rgba(0, 0, 0, .12); }
+.placeholder-list[hidden] { display: none; }
+.placeholder-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 20px 18px; column-gap: 10px; width: 100%; height: 46px; padding: 4px 8px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.placeholder-entry:hover, .placeholder-entry:focus-visible { background: var(--surface-2); outline: none; }
+.placeholder-entry > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.placeholder-label { font-size: 13px; font-weight: 600; }
+.placeholder-tag { max-width: 22ch; font: 12px/20px var(--mono); color: var(--c-value); }
+.placeholder-example { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .placeholder-header .arrow { transition: none; } }
+
+/* The side panel: on the desktop a drawer over the right of the tree below the tree's bar
+   (layout.js keeps the bar's height as --tree-bar), closed at the start and opened with the button
+   in the top right corner of the work area, which stays in its place. The bar's controls stay in
+   view and usable while it is open. Up to 860 px it is the view "Edit". */
+.panel-toggle { display: none; }
+@media (min-width: 861px) {
+    .workspace { --drawer-width: 330px; position: relative; z-index: 0; grid-template-columns: minmax(0, var(--code-fr)) 6px minmax(0, var(--view-fr)); }
+    .inspector { position: absolute; top: var(--tree-bar, 45px); right: 0; bottom: 0; z-index: 6; width: var(--drawer-width); max-width: 70%; border-left: 1px solid var(--border); box-shadow: -10px 0 28px rgba(0, 0, 0, .14); }
+    .workspace:not([data-panel="open"]) .inspector { display: none; }
+    .draw-pane > .pane-header { padding-right: 48px; }
+    .panel-toggle { display: inline-grid; position: absolute; top: 7px; right: 9px; z-index: 7; background: var(--surface); }
+    .panel-toggle[aria-expanded="true"] { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    /* With the drawer open, the view note stands in the middle of the part of the tree left of the
+       drawer, as wide as its text and at most as wide as that part. */
+    .workspace[data-panel="open"] .view-note { right: calc(var(--drawer-width) + 12px); left: 12px; width: fit-content; max-width: none; margin-inline: auto; transform: none; }
+}

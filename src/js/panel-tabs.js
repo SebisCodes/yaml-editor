@@ -4,9 +4,9 @@
  */
 
 import { ui, getElements } from './state.js?v=2';
-import { renderValuePanel } from './value-panel.js?v=3';
-import { renderConvertPanel } from './conversion-panel.js?v=3';
-import { renderSchemaPanel } from './schema-panel.js?v=3';
+import { renderValuePanel } from './value-panel.js?v=4';
+import { renderConvertPanel } from './conversion-panel.js?v=4';
+import { renderSchemaPanel } from './schema-panel.js?v=4';
 
 /**
  * Connects the tab buttons of the side panel.

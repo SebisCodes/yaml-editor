@@ -2,13 +2,15 @@
  * The "Convert" tab of the side panel and Format: the document written again with consistent
  * indentation (comments stay), and its data converted to JSON, JSON Lines, CSV, XML or the
  * tree as plain text, to copy, download or open in the JSON Editor. The page around the editor
- * gets its documents tidied with getTidyCode() (?tidy=1, sync.js).
+ * gets its documents tidied with getTidyCode() (?tidy=1, sync.js). A template that holds
+ * placeholders (?template=) stays as written: Format, Tidy and the conversions wait for the
+ * filled data.
  */
 
-import { parse, importYamlLibrary, getModelValue, getIndentUnit } from './datatree.js?v=12';
-import { convertToJson, convertToJsonl, convertToCsv, convertToXml, getTreeText, formatYaml } from './convert.js?v=13';
+import { parse, importYamlLibrary, getModelValue, getIndentUnit, hasTemplateTags, TEMPLATE_FORMAT_MESSAGE } from './datatree.js?v=13';
+import { convertToJson, convertToJsonl, convertToCsv, convertToXml, getTreeText, formatYaml } from './convert.js?v=14';
 import { state, ui, areas, FORMAT, SYNTAX_ERROR, showToast, translate, getElement, hasData } from './state.js?v=2';
-import { setCode } from './history.js?v=3';
+import { setCode } from './history.js?v=4';
 import { saveFile, getSafeName } from './util.js?v=3';
 
 /** The message when there is no data to convert. */
@@ -83,6 +85,7 @@ function getIndentChoice() {
 export async function convertDocument(kind, indent = FORMAT_INDENT, guard = false) {
     if (!hasData()) return { error: NO_DATA };
     if (state.model.broken) return { error: SYNTAX_ERROR };
+    if (hasTemplateTags(state.code)) return { error: TEMPLATE_FORMAT_MESSAGE };
     const value = getModelValue(state.model);
     if (kind === 'jsonl') return convertToJsonl(state.model.docs.length > 1 ? value : Array.isArray(value) ? value : [value]);
     if (kind === 'json') return { text: convertToJson(value, indent === '\t' ? '\t' : indent), note: state.model.docs.length > 1 ? 'The file has several documents - they become one JSON array.' : '' };
@@ -90,6 +93,16 @@ export async function convertDocument(kind, indent = FORMAT_INDENT, guard = fals
     if (kind === 'xml') return { text: convertToXml(value) };
     if (kind === 'txt') return { text: getTreeText(state.model, translate) };
     return { error: 'unknown format' };
+}
+
+/**
+ * Returns the code that "Open in another editor" converts (convert-to.js).
+ * @returns {string} the open document's code.
+ * @throws {Error} TEMPLATE_FORMAT_MESSAGE while the document holds template placeholders.
+ */
+export function getConvertibleCode() {
+    if (hasTemplateTags(state.code)) throw new Error(TEMPLATE_FORMAT_MESSAGE);
+    return state.code;
 }
 
 /**
@@ -169,6 +182,7 @@ function openInOtherEditor(text) {
 export async function formatDocument(indent) {
     if (!state.model || state.model.broken) { showToast(SYNTAX_ERROR); return; }
     if (!hasData()) { showToast(NO_DATA); return; }
+    if (hasTemplateTags(state.code)) { showToast(TEMPLATE_FORMAT_MESSAGE); return; }
     await importYamlLibrary();
     let code;
     try { code = formatYaml(state.code, typeof indent === 'number' ? indent : indent === '\t' ? FORMAT_INDENT : indent.length || FORMAT_INDENT); } catch (e) { showToast(e.message); return; }
@@ -181,11 +195,13 @@ export async function formatDocument(indent) {
 
 /**
  * Returns a document's code as Format writes it, for a document the page hands over with
- * ?tidy=1 or tidy: true (sync.js); code with a syntax error or without data comes back as it is.
+ * ?tidy=1 or tidy: true (sync.js); code with a syntax error, without data or with template
+ * placeholders comes back as it is.
  * @param {string} code - the code.
  * @returns {Promise<string>} the tidied code.
  */
 export async function getTidyCode(code) {
+    if (hasTemplateTags(code)) return code;
     const model = parse(FORMAT.editor, code);
     if (model.broken || !model.docs.some(doc => doc.root)) return code;
     await importYamlLibrary();

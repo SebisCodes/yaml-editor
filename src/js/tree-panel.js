@@ -2,14 +2,17 @@
  * The data tree and the edits made in it. The tree is drawn from the code (datatree.js
  * createTree()); every change in the tree is a small edit of the code at that place
  * (editCode()), one undo step, after which the changed value is selected in the tree and in
- * the code.
+ * the code. In the example view of a template the tree shows the filled data (tree-views.js):
+ * its places and changes lead back to the template, and a key or value whose text holds an
+ * example is read-only.
  */
 
-import { createTree, editCode, getDocIndex, getAliasTarget } from './datatree.js?v=12';
+import { createTree, editCode, getDocIndex, getAliasTarget, getTemplateEditRefusal } from './datatree.js?v=13';
+import { getTreeCodeRange, getTreePlace, getExampleEditRefusal, getTemplateChange } from './tree-views.js?v=1';
 import { state, ui, areas, FORMAT, showToast, translate, getElement } from './state.js?v=2';
-import { showCodePosition } from './code-view.js?v=3';
-import { setCode, addPendingHistoryStep } from './history.js?v=3';
-import { renderValuePanel } from './value-panel.js?v=3';
+import { showCodePosition } from './code-view.js?v=4';
+import { setCode, addPendingHistoryStep } from './history.js?v=4';
+import { renderValuePanel } from './value-panel.js?v=4';
 
 /** The message when the tree cannot be edited because of a syntax error. */
 const BROKEN_CODE = 'The code has a syntax error - fix it first (see above the code), then edit in the tree';
@@ -73,9 +76,8 @@ function handleTreeAction(name, info) {
  * @returns {void}
  */
 function showPickedNode(info, how) {
-    if (!info.node) { if (info.docStart != null) showCodePosition(info.docStart, false); return; }
-    const start = info.entry ? info.entry.start : info.node.start;
-    showCodePosition(start, false, Math.max(start, info.node.end));
+    if (!info.node) { if (info.docStart != null) showCodePosition(getTreeCodeRange(info.docStart, info.docStart).start, false); return; }
+    showTreeEntryInCode(info);
     renderValuePanel();
     if (how === 'search' || how === 'path') ui.tree.focus({ preventScroll: true });
 }
@@ -92,6 +94,8 @@ function showPickedNode(info, how) {
 function handleTreeEdit({ what, info, text, phase }) {
     if (phase === 'start') {
         if (state.model.broken || state.model.docs[info.doc]?.broken) { showToast(BROKEN_CODE); return 'broken'; }
+        const refusal = getExampleEditRefusal(what, info) || getTemplateEditRefusal(what, info.node);
+        if (refusal) { showToast(refusal); return refusal; }
         return true;
     }
     if (what === 'key') return editCodeFromTree({ kind: 'key', entry: info.entry, key: text });
@@ -134,17 +138,30 @@ export function getTypedValue(node, text) {
  * @returns {true|string} true when it worked, otherwise the reason (also shown as a toast).
  */
 export function editCodeFromTree(operation, { doc } = {}) {
-    const docIndex = doc ?? getOperationDoc(operation);
+    let templateOperation;
+    try { templateOperation = getTemplateChange(operation); } catch (e) { showToast(e.message); return e.message; }
+    const docIndex = doc ?? getOperationDoc(templateOperation);
     if (state.model.broken || state.model.docs[docIndex]?.broken) { showToast(BROKEN_CODE); return 'broken'; }
     let result;
-    try { result = editCode(FORMAT.editor, state.code, operation); } catch (e) { showToast(e.message); return e.message; }
+    try { result = editCode(FORMAT.editor, state.code, templateOperation); } catch (e) { showToast(e.message); return e.message; }
     addPendingHistoryStep();
     setCode(result.code);
-    areas.tree.select({ doc: docIndex, path: result.path });
+    areas.tree.select(getTreePlace(docIndex, result.path));
     const info = areas.tree.getSelectedInfo();
-    if (info) { const start = info.entry ? info.entry.start : info.node.start; showCodePosition(start, false, Math.max(start, info.node.end)); }
+    if (info) showTreeEntryInCode(info);
     renderValuePanel();
     return true;
+}
+
+/**
+ * Selects in the code, without focusing it, the place of an entry of the tree: in the example
+ * view of a template the place in the template it comes from.
+ * @param {object} info - the entry in the tree: node and entry.
+ * @returns {void}
+ */
+function showTreeEntryInCode(info) {
+    const range = getTreeCodeRange(info.entry ? info.entry.start : info.node.start, info.node.end);
+    showCodePosition(range.start, false, range.end);
 }
 
 /**

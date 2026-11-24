@@ -10,7 +10,7 @@
  * 4. report tabs used for indentation, which the package reports only in part.
  */
 
-import { getYamlLibrary, createNode } from './datatree-core.js?v=2';
+import { getYamlLibrary, createNode } from './datatree-core.js?v=3';
 
 /** The messages for the yaml package's error codes. */
 const YAML_MESSAGES = {

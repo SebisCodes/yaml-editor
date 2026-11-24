@@ -13,7 +13,8 @@
  * normal button.
  *
  * The lines in the dialog show the three ways an AI reaches the editor:
- *   - AI through the page around the editor (endpoint and the session's key, see sync.js)
+ *   - AI through the page around the editor (endpoint and the session's key, see sync.js;
+ *     a page that gives its own answering instructions has no key in the prompt)
  *   - a browser agent through WebMCP (tools offered, last call, see mcp.js)
  *   - AI links: a link tab hands its document to the editor tab used last
  *     (ai.js); inside another website the browser keeps the tabs apart.
@@ -27,6 +28,8 @@
  *
  * The same file serves every giit editor.
  */
+
+import { isAnswerFromPage } from './prompt-parts.js?v=1';
 
 const AGENT_ACTIVE_MS = 5 * 60 * 1000;  // a browser agent counts as active this long after its last call
 const LINK_NOTICE_MS = 3000;           // how long the check mark shows after a document from an AI link
@@ -191,13 +194,15 @@ export function createAiStatus({ prefix, btn, box, remote, agent }) {
     }
 
     /**
-     * Returns the line of the AI through the page around the editor.
+     * Returns the line of the AI through the page around the editor: connected with its key,
+     * waiting for the key, or the page's own answering instructions (no key in the prompt).
      * @returns {StatusLine} the state and text.
      */
     function getPageLine() {
         const pageAi = remote();
+        const where = pageAi && (pageAi.site && pageAi.site !== pageAi.label ? `${pageAi.label} (${pageAi.site})` : pageAi.label);
+        if (isAnswerFromPage(pageAi)) return [STATE_NONE, `AI through ${where}: the website gives the answering instructions`];
         if (!pageAi || !pageAi.endpoint) return [STATE_NONE, 'AI through a website: not connected'];
-        const where = pageAi.site && pageAi.site !== pageAi.label ? `${pageAi.label} (${pageAi.site})` : pageAi.label;
         return pageAi.key
             ? [STATE_CONNECTED, `AI through ${where}: connected`]
             : [STATE_WAITING, `AI through ${where}: connected, waiting for the key`];

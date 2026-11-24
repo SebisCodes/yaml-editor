@@ -26,7 +26,7 @@ const TOML_INTEGER_LIMIT = 9223372036854775807;
  * @returns {Promise<object>} the module of shls.js.
  */
 export async function importShls() {
-    return import('./shls.js?v=7');
+    return import('./shls.js?v=8');
 }
 
 /* ---------- YAML ---------- */

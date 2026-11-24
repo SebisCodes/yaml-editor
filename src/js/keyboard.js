@@ -7,12 +7,12 @@
 
 import { openDialog } from './dialogs.js?v=5';
 import { ui, areas, NARROW_SCREEN, TYPING_FIELDS, getElement } from './state.js?v=2';
-import { undo, redo } from './history.js?v=3';
-import { formatDocument, FORMAT_INDENT } from './conversion-panel.js?v=3';
-import { selectSearchField } from './tree-tools.js?v=3';
-import { applyNewMenuSwitch, isNewMenuOpen } from './documents.js?v=3';
-import { showPane } from './layout.js?v=3';
-import { openExport, saveFromShortcut } from './export-dialog.js?v=3';
+import { undo, redo } from './history.js?v=4';
+import { formatDocument, FORMAT_INDENT } from './conversion-panel.js?v=4';
+import { selectSearchField } from './tree-tools.js?v=4';
+import { applyNewMenuSwitch, isNewMenuOpen } from './documents.js?v=4';
+import { showPane } from './layout.js?v=4';
+import { openExport, saveFromShortcut } from './export-dialog.js?v=4';
 
 /** The keys of the shortcuts with Ctrl or Cmd, as KeyboardEvent.key gives them. */
 const SAVE_KEY = 's', EXPORT_KEY = 'e', OPEN_KEY = 'o', SEARCH_KEY = 'f', REDO_KEY = 'y';

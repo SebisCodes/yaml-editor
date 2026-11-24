@@ -12,7 +12,7 @@
  */
 
 import { LOSS } from './convert-model.js?v=2';
-import { importShls, formatYaml, formatToml, formatCsv, formatShls, formatXml } from './convert-data-write.js?v=3';
+import { importShls, formatYaml, formatToml, formatCsv, formatShls, formatXml } from './convert-data-write.js?v=4';
 
 /** The separators a CSV file may use; the one found most often in the first line wins. */
 const CSV_SEPARATORS = [',', ';', '\t', '|'];
@@ -59,7 +59,7 @@ async function parseData(from, code, lost) {
         }
         case 'toml': {
             if (/^\s*#/m.test(code)) lost.add(LOSS.comments);
-            const TOML = await import('./toml.js?v=6');
+            const TOML = await import('./toml.js?v=7');
             return TOML.convertFromToml(code);
         }
         case 'shls': { const SHLS = await importShls(); return SHLS.convertToJs(SHLS.parseShls(code)); }

@@ -4,9 +4,9 @@
  */
 
 import { state, ui, areas, showToast, getElement } from './state.js?v=2';
-import { renderCode } from './code-view.js?v=3';
-import { updateAnalysis } from './analysis.js?v=3';
-import { saveDocument } from './storage.js?v=3';
+import { renderCode } from './code-view.js?v=4';
+import { updateAnalysis } from './analysis.js?v=4';
+import { saveDocument } from './storage.js?v=4';
 
 /** The most undo steps a document keeps. */
 const MAX_STEPS = 300;

@@ -11,14 +11,15 @@
  * 4. return the new code with the path of the node to select afterwards.
  */
 
-import { getYamlLibrary, getAddedFormat, isContainer, getAliasTarget, setOwnProperty } from './datatree-core.js?v=2';
-import { STRICT_NUMBER } from './datatree-json.js?v=3';
-import { getColonEnd } from './datatree-yaml.js?v=3';
-import { getPlainValue, getPath } from './datatree-values.js?v=3';
+import { getYamlLibrary, getAddedFormat, isContainer, getAliasTarget, setOwnProperty } from './datatree-core.js?v=3';
+import { STRICT_NUMBER } from './datatree-json.js?v=4';
+import { getColonEnd } from './datatree-yaml.js?v=4';
+import { getPlainValue, getPath } from './datatree-values.js?v=4';
+import { checkTemplateEdit } from './datatree-template.js?v=1';
 import {
     formatJsonLine, formatJsonText, formatYamlScalar, formatYamlFlow, formatYamlBlock, isEmptyContainer,
     formatYamlValuePart, formatYamlItemPart, formatHangingIndent,
-} from './datatree-write.js?v=3';
+} from './datatree-write.js?v=4';
 
 /** The indentation when the document has none. */
 const DEFAULT_INDENT = 2;
@@ -235,7 +236,8 @@ export function convertValue(node, type) {
 }
 
 /**
- * Turns one change from the tree into a change of the code.
+ * Turns one change from the tree into a change of the code; the template tags outside the
+ * changed part stay as written (checkTemplateEdit).
  * @param {string} format - 'json', 'jsonl', 'yaml' or an added format.
  * @param {string} src - the code.
  * @param {TreeEdit} op - the change.
@@ -243,16 +245,30 @@ export function convertValue(node, type) {
  * @throws {Error} with a message for the user when the change cannot be made.
  */
 export function editCode(format, src, op) {
+    const result = writeEditedCode(format, src, op);
+    checkTemplateEdit(src, op, result.code);
+    return result;
+}
+
+/**
+ * Writes one change from the tree as new code (the steps in the header).
+ * @param {string} format - 'json', 'jsonl', 'yaml' or an added format.
+ * @param {string} src - the code.
+ * @param {TreeEdit} op - the change.
+ * @returns {EditResult} the new code and the path to select.
+ * @throws {Error} with a message for the user when the change cannot be made.
+ */
+function writeEditedCode(format, src, op) {
     const added = getAddedFormat(format);
     if (added) return added.applyEdit(src, op);
     if (format === 'jsonl') {
         singleLine = true;
-        try { return editCode('json', src, op); } finally { singleLine = false; }
+        try { return writeEditedCode('json', src, op); } finally { singleLine = false; }
     }
     const context = { format, src, unit: getIndentUnit(src), yaml: format === 'yaml' };
     if (context.yaml && !getYamlLibrary()) throw new Error('importYamlLibrary() first');
     switch (op.kind) {
-        case 'type': return editCode(format, src, { kind: 'value', node: op.node, value: convertValue(op.node, op.type) });
+        case 'type': return writeEditedCode(format, src, { kind: 'value', node: op.node, value: convertValue(op.node, op.type) });
         case 'value': return context.yaml ? editYamlValue(context, op) : editJsonValue(context, op);
         case 'key': return editKey(context, op);
         case 'add': return addEntry(context, op);
@@ -379,7 +395,7 @@ function addEntry(context, op) {
     const multiLine = isMultiLine(src, container);
     const entryIndent = getEntryIndent(src, container, unit);
     const entryText = !yaml ? (isObject ? JSON.stringify(key) + ': ' : '') + formatJsonText(value, entryIndent, unit, multiLine) : (isObject ? formatYamlScalar(key, { flow: true }) + ': ' : '') + formatYamlFlow(value);
-    if (yaml && !container.entries.length && !isInsideFlow(container)) return { ...editCode(format, src, { kind: 'value', node: container, value: isObject ? { [key]: value } : [value], block: true }), path };
+    if (yaml && !container.entries.length && !isInsideFlow(container)) return { ...writeEditedCode(format, src, { kind: 'value', node: container, value: isObject ? { [key]: value } : [value], block: true }), path };
     return { code: addCommaEntry(src, container, at, entryText, entryIndent, multiLine), path };
 }
 
@@ -456,7 +472,7 @@ function removeEntry({ format, src }, op) {
     const next = count === 1 ? [] : container.type === 'array' ? [Math.min(entry.index, count - 2)] : [container.entries[entry.index + 1 < count ? entry.index + 1 : entry.index - 1].key];
     const path = [...getPath(container), ...next];
     if (isCommaStyle(format, container)) return { code: removeCommaEntry(src, container, entry.index), path };
-    if (count === 1) return editCode(format, src, { kind: 'value', node: container, value: container.type === 'array' ? [] : {} });
+    if (count === 1) return writeEditedCode(format, src, { kind: 'value', node: container, value: container.type === 'array' ? [] : {} });
     const lineStart = getLineStart(src, entry.start);
     if (/^[ \t]*$/.test(src.slice(lineStart, entry.start))) {
         let from = lineStart, to = getLineEnd(src, entry.node.end);

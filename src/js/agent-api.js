@@ -4,16 +4,17 @@
  * user's other documents, and replacing text in the code.
  */
 
-import { formatPath, getNodeAtPath, getPlainValue, parsePath, getAliasTarget } from './datatree.js?v=12';
+import { formatPath, getNodeAtPath, getPlainValue, parsePath, getAliasTarget } from './datatree.js?v=13';
 import { store } from './files.js?v=8';
 import { state, ui, areas } from './state.js?v=2';
-import { getLineIndex, getColumnIndex, getLineStart, showCodePosition } from './code-view.js?v=3';
-import { setCode } from './history.js?v=3';
-import { getSchema } from './analysis.js?v=3';
-import { editCodeFromTree } from './tree-panel.js?v=3';
-import { selectCursorNode } from './tree-tools.js?v=3';
-import { openDocument } from './documents.js?v=3';
+import { getLineIndex, getColumnIndex, getLineStart, showCodePosition } from './code-view.js?v=4';
+import { setCode } from './history.js?v=4';
+import { getSchema } from './analysis.js?v=4';
+import { editCodeFromTree } from './tree-panel.js?v=4';
+import { selectCursorNode } from './tree-tools.js?v=4';
+import { openDocument } from './documents.js?v=4';
 import { BLANK } from './samples.js?v=4';
+import { getTemplatePath } from './tree-views.js?v=1';
 
 /** The message when the data tools find no data. */
 const NO_DATA = 'The document has no data yet.';
@@ -58,12 +59,12 @@ const AI_DOCUMENT = 'AI document';
  * @returns {PromptState} the document, its selection and problems.
  */
 export function getPromptState() {
-    const selected = areas.tree.getSelectedInfo();
+    const selected = getTemplatePath(areas.tree.getSelectedInfo());
     const schema = getSchema();
     return {
         code: state.code, name: state.name, files: store.getSortedEntries().map(entry => entry.name),
         sel: state.code.slice(ui.ta.selectionStart, ui.ta.selectionEnd),
-        path: selected && selected.path.length ? formatPath(selected.path) : '',
+        path: selected.length ? formatPath(selected) : '',
         schema: schema && schema.name ? schema.name : '',
         problems: getProblemList().map(problem => `line ${problem.line}, column ${problem.col}: ${problem.msg}`),
         context: areas.sync?.getContext() || null,

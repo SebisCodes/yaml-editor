@@ -3,17 +3,21 @@
  * runs these steps:
  *   1. read the code into the model (datatree.js parse());
  *   2. collect the problems of the code and, with a schema chosen, those of the schema check;
- *   3. draw the tree, the problems and the side panel tabs that show the data.
+ *   3. build the view of a template (tree-views.js: the example view or the template view);
+ *   4. draw the tree, the controls of template placeholders, the problems and the side panel
+ *      tabs that show the data.
  */
 
-import { parse, getModelValue, getSchemaProblems, TooManyValues } from './datatree.js?v=12';
+import { parse, getModelValue, getSchemaProblems, TooManyValues } from './datatree.js?v=13';
 import { store } from './files.js?v=8';
 import { state, ui, areas, FORMAT, getElement } from './state.js?v=2';
-import { renderMarks } from './code-view.js?v=3';
-import { renderProblems } from './problems.js?v=3';
-import { renderValuePanel } from './value-panel.js?v=3';
-import { renderSchemaPanel } from './schema-panel.js?v=3';
-import { renderConvertResult } from './conversion-panel.js?v=3';
+import { renderMarks } from './code-view.js?v=4';
+import { renderProblems } from './problems.js?v=4';
+import { renderValuePanel } from './value-panel.js?v=4';
+import { renderSchemaPanel } from './schema-panel.js?v=4';
+import { renderConvertResult } from './conversion-panel.js?v=4';
+import { updateTreeView, getTreeModel } from './tree-views.js?v=1';
+import { renderTemplateControls } from './template-panel.js?v=1';
 
 /**
  * The schema chosen for the open document.
@@ -90,11 +94,25 @@ export function updateAnalysis() {
     state.model = parse(FORMAT.editor, state.code);
     showDownloadFormat();
     state.problems = getProblems();
-    areas.tree.render(state.model);
+    updateTreeView();
+    areas.tree.render(getTreeModel());
+    renderTemplateControls();
     renderProblems();
     renderValuePanel();
     if (!ui.schema.hidden) renderSchemaPanel();
     if (!ui.convert.hidden) renderConvertResult();
+}
+
+/**
+ * Builds the view of a template again and draws the tree, the controls of template placeholders
+ * and the value panel: after a switch of the view, and when the page's examples change.
+ * @returns {void}
+ */
+export function renderTreeView() {
+    updateTreeView();
+    areas.tree.render(getTreeModel());
+    renderTemplateControls();
+    renderValuePanel();
 }
 
 /**
