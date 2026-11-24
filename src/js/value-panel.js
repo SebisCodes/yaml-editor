@@ -6,8 +6,8 @@
 
 import { escapeHtml, formatPath, getAliasTarget, TYPES } from './datatree.js?v=13';
 import { state, ui, areas, showToast, getElement, formatByteSize, getByteSize, hasData } from './state.js?v=2';
-import { getLineIndex, getColumnIndex } from './code-view.js?v=4';
-import { editCodeFromTree, runNodeAction, getTypedValue } from './tree-panel.js?v=4';
+import { getLineIndex, getColumnIndex } from './code-view.js?v=5';
+import { editCodeFromTree, runNodeAction, getTypedValue } from './tree-panel.js?v=5';
 import { getTreeCodeRange } from './tree-views.js?v=1';
 
 /** The types the type choice above the tree shows for a value. */

@@ -9,8 +9,8 @@ import { openDialog } from './dialogs.js?v=5';
 import { createZip } from './zip.js?v=4';
 import { saveFile, getSafeName } from './util.js?v=3';
 import { state, ui, areas, FORMAT, showToast, getElement, getByteSize } from './state.js?v=2';
-import { updateAnalysis } from './analysis.js?v=4';
-import { convertDocument, FORMAT_INDENT } from './conversion-panel.js?v=4';
+import { updateAnalysis } from './analysis.js?v=5';
+import { convertDocument, FORMAT_INDENT } from './conversion-panel.js?v=5';
 
 /** The formats of the dialog, with their file extension and media type. */
 const EXPORT_FORMATS = {

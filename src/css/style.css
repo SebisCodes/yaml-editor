@@ -224,7 +224,7 @@ input[type=color] { width: 34px; height: 30px; padding: 2px; border: 1px solid v
     --code-fr: 1fr;
     --view-fr: 1fr;
     display: grid;
-    grid-template-columns: minmax(0, var(--code-fr)) 6px minmax(0, var(--view-fr)) 290px;
+    grid-template-columns: minmax(0, var(--code-fr)) 6px minmax(0, var(--view-fr));
     height: calc(100vh - var(--header-height, 53px));
     height: calc(100dvh - var(--header-height, 53px));
     min-height: 520px;
@@ -528,12 +528,6 @@ html.translate :is(.header, .views, #work, dialog) { visibility: hidden; }
 .legal code { overflow-wrap: anywhere; }
 .back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; text-decoration: none; font-weight: 600; }
 
-/* ---------- Medium width: a narrower side panel ---------- */
-
-@media (max-width: 1180px) {
-    .workspace { grid-template-columns: minmax(0, var(--code-fr)) 6px minmax(0, var(--view-fr)) 250px; }
-}
-
 /* ---------- Narrow: one view at a time ---------- */
 
 @media (max-width: 860px) {
@@ -835,10 +829,10 @@ textarea.trow-edit { height: auto !important; width: min(60ch, 100%) !important;
 }
 /* Two long buttons (Schema tab) one below the other, each the full width. */
 .button-row.stack { display: grid; grid-template-columns: minmax(0, 1fr); }
-/* Panel tabs: a little less padding and type, so the longest languages fit beside each other; four
-   tabs in the narrow panel of a small desktop stand in two rows of two. */
+/* Panel tabs: a little less padding and type, so the longest languages fit beside each other; on
+   the desktop, four tabs stand in two rows of two beside the side panel's button. */
 .inspector .tabs button { padding: 0 4px; font-size: 12px; }
-@media (min-width: 861px) and (max-width: 1180px) {
+@media (min-width: 861px) {
     .inspector .tabs:has(> :nth-child(4)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
 }
 /* The view tabs share the bar in equal parts, whatever their labels. */
@@ -919,19 +913,17 @@ html:lang(ko) { --lang-short: "KO"; }
 .placeholder-example { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .placeholder-header .arrow { transition: none; } }
 
-/* The side panel: on the desktop a drawer over the right of the tree below the tree's bar
-   (layout.js keeps the bar's height as --tree-bar), closed at the start and opened with the button
-   in the top right corner of the work area, which stays in its place. The bar's controls stay in
-   view and usable while it is open. Up to 860 px it is the view "Edit". */
+/* The side panel: on the desktop a column right of the tree, closed at the start and opened with
+   the button in the top right corner of the work area, which stays in its place and size. The open
+   column takes its width from the code and the tree, which share the rest by the split. Up to 860
+   px it is the view "Edit". */
 .panel-toggle { display: none; }
+.viewer .panel-toggle { display: none !important; }
 @media (min-width: 861px) {
-    .workspace { --drawer-width: 330px; position: relative; z-index: 0; grid-template-columns: minmax(0, var(--code-fr)) 6px minmax(0, var(--view-fr)); }
-    .inspector { position: absolute; top: var(--tree-bar, 45px); right: 0; bottom: 0; z-index: 6; width: var(--drawer-width); max-width: 70%; border-left: 1px solid var(--border); box-shadow: -10px 0 28px rgba(0, 0, 0, .14); }
+    .workspace { position: relative; z-index: 0; }
+    .workspace[data-panel="open"] { grid-template-columns: minmax(0, var(--code-fr)) 6px minmax(0, var(--view-fr)) 290px; }
     .workspace:not([data-panel="open"]) .inspector { display: none; }
-    .draw-pane > .pane-header { padding-right: 48px; }
+    .workspace:not([data-panel="open"]) .draw-pane > .pane-header, .inspector > .pane-header { padding-right: 48px; }
     .panel-toggle { display: inline-grid; position: absolute; top: 7px; right: 9px; z-index: 7; background: var(--surface); }
     .panel-toggle[aria-expanded="true"] { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
-    /* With the drawer open, the view note stands in the middle of the part of the tree left of the
-       drawer, as wide as its text and at most as wide as that part. */
-    .workspace[data-panel="open"] .view-note { right: calc(var(--drawer-width) + 12px); left: 12px; width: fit-content; max-width: none; margin-inline: auto; transform: none; }
 }

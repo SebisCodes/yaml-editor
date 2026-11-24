@@ -10,7 +10,7 @@
 import { parse, importYamlLibrary, getModelValue, getIndentUnit, hasTemplateTags, TEMPLATE_FORMAT_MESSAGE } from './datatree.js?v=13';
 import { convertToJson, convertToJsonl, convertToCsv, convertToXml, getTreeText, formatYaml } from './convert.js?v=14';
 import { state, ui, areas, FORMAT, SYNTAX_ERROR, showToast, translate, getElement, hasData } from './state.js?v=2';
-import { setCode } from './history.js?v=4';
+import { setCode } from './history.js?v=5';
 import { saveFile, getSafeName } from './util.js?v=3';
 
 /** The message when there is no data to convert. */

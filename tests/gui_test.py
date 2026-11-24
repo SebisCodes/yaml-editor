@@ -38,7 +38,7 @@ def check_that(cond, what):
 
 
 def show_side_panel(page, is_open):
-    """Opens or closes the side panel's drawer (it is closed at the start).
+    """Opens or closes the side panel's column (it is closed at the start).
 
     Args:
         page (Page): the editor's page.

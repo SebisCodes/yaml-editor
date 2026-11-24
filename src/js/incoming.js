@@ -8,8 +8,8 @@ import { parse, getModelValue, mergeData } from './datatree.js?v=13';
 import { VIEWER } from './sync.js?v=24';
 import { store } from './files.js?v=8';
 import { state, ui, FORMAT, showToast } from './state.js?v=2';
-import { setCode } from './history.js?v=4';
-import { openDocument, createDocument } from './documents.js?v=4';
+import { setCode } from './history.js?v=5';
+import { openDocument, createDocument } from './documents.js?v=5';
 
 /** The name of a document from the AI without one. */
 const AI_DOCUMENT = 'AI document';

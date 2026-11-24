@@ -28,7 +28,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
-<link rel="stylesheet" href="/css/style.css?v=27">
+<link rel="stylesheet" href="/css/style.css?v=28">
 <script src="/js/lang-menu.js?v=1" defer></script>
 <script src="/js/theme.js?v=10" data-editor-page></script>
 <script type="application/ld+json"><?= get_json_ld('jsonld') ?></script>
@@ -321,6 +321,6 @@ addEventListener('message', e =&gt; {
 
 <?php include __DIR__ . '/footer.php'; ?>
 
-<script type="module" src="/js/app.js?v=45"></script>
+<script type="module" src="/js/app.js?v=46"></script>
 </body>
 </html>

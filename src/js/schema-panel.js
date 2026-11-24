@@ -8,8 +8,8 @@ import { escapeHtml, findKey, getModelValue } from './datatree.js?v=13';
 import { convertToYaml, getInferredSchema } from './convert.js?v=14';
 import { store } from './files.js?v=8';
 import { state, ui, SYNTAX_ERROR, showToast, hasData } from './state.js?v=2';
-import { getSchema, clearSchemaCache, updateAnalysis } from './analysis.js?v=4';
-import { openDocument, createDocument } from './documents.js?v=4';
+import { getSchema, clearSchemaCache, updateAnalysis } from './analysis.js?v=5';
+import { openDocument, createDocument } from './documents.js?v=5';
 
 /** The most characters of the schema address the tab shows. */
 const MAX_ADDRESS_LENGTH = 200;

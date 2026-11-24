@@ -6,8 +6,8 @@
 
 import { store } from './files.js?v=8';
 import { state, areas, showToast, STORAGE_FULL } from './state.js?v=2';
-import { setCode } from './history.js?v=4';
-import { showFileName } from './documents.js?v=4';
+import { setCode } from './history.js?v=5';
+import { showFileName } from './documents.js?v=5';
 
 /** The storage key of the settings (the open document and the split). */
 const SETTINGS_KEY = 'yamleditor.v1';

@@ -10,9 +10,9 @@
 import { createTree, editCode, getDocIndex, getAliasTarget, getTemplateEditRefusal } from './datatree.js?v=13';
 import { getTreeCodeRange, getTreePlace, getExampleEditRefusal, getTemplateChange } from './tree-views.js?v=1';
 import { state, ui, areas, FORMAT, showToast, translate, getElement } from './state.js?v=2';
-import { showCodePosition } from './code-view.js?v=4';
-import { setCode, addPendingHistoryStep } from './history.js?v=4';
-import { renderValuePanel } from './value-panel.js?v=4';
+import { showCodePosition } from './code-view.js?v=5';
+import { setCode, addPendingHistoryStep } from './history.js?v=5';
+import { renderValuePanel } from './value-panel.js?v=5';
 
 /** The message when the tree cannot be edited because of a syntax error. */
 const BROKEN_CODE = 'The code has a syntax error - fix it first (see above the code), then edit in the tree';

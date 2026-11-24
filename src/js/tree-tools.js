@@ -7,9 +7,9 @@
 import { formatPath } from './datatree.js?v=13';
 import { getTreeNodeAtCode } from './tree-views.js?v=1';
 import { state, ui, areas, showToast, getElement } from './state.js?v=2';
-import { moveLineBand } from './code-view.js?v=4';
-import { editCodeFromTree, runNodeAction, CHOOSE_VALUE } from './tree-panel.js?v=4';
-import { renderValuePanel } from './value-panel.js?v=4';
+import { moveLineBand } from './code-view.js?v=5';
+import { editCodeFromTree, runNodeAction, CHOOSE_VALUE } from './tree-panel.js?v=5';
+import { renderValuePanel } from './value-panel.js?v=5';
 
 /** The pause after typing in the search before it searches, in milliseconds. */
 const SEARCH_DELAY = 160;

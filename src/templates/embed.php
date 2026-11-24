@@ -27,7 +27,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
-<link rel="stylesheet" href="/css/style.css?v=27">
+<link rel="stylesheet" href="/css/style.css?v=28">
 <script src="/js/theme.js?v=9"></script>
 <script src="/js/lang-menu.js?v=1" defer></script>
 <style>

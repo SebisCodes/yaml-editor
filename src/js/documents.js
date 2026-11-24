@@ -9,13 +9,13 @@ import { openConfirmation } from './dialogs.js?v=5';
 import { store } from './files.js?v=8';
 import { createFiles } from './files-dialog.js?v=2';
 import { state, ui, areas, showToast, getElement, getElements } from './state.js?v=2';
-import { setCode, addHistoryStep, updateHistoryUi, undo, redo } from './history.js?v=4';
-import { clearSchemaCache } from './analysis.js?v=4';
-import { saveDocument } from './storage.js?v=4';
-import { renderValuePanel } from './value-panel.js?v=4';
-import { renderSchemaPanel } from './schema-panel.js?v=4';
-import { renderConvertPanel } from './conversion-panel.js?v=4';
-import { openFilePicker } from './file-import.js?v=4';
+import { setCode, addHistoryStep, updateHistoryUi, undo, redo } from './history.js?v=5';
+import { clearSchemaCache } from './analysis.js?v=5';
+import { saveDocument } from './storage.js?v=5';
+import { renderValuePanel } from './value-panel.js?v=5';
+import { renderSchemaPanel } from './schema-panel.js?v=5';
+import { renderConvertPanel } from './conversion-panel.js?v=5';
+import { openFilePicker } from './file-import.js?v=5';
 
 /** The name of a document without one. */
 const DEFAULT_NAME = 'Document';

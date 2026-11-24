@@ -7,10 +7,10 @@
 
 import { getIndentUnit } from './datatree.js?v=13';
 import { state, ui, areas } from './state.js?v=2';
-import { renderCode, syncScroll, setCodeRange } from './code-view.js?v=4';
-import { addHistoryStep, undo, redo } from './history.js?v=4';
-import { startAnalysisTimer } from './analysis.js?v=4';
-import { saveDocument } from './storage.js?v=4';
+import { renderCode, syncScroll, setCodeRange } from './code-view.js?v=5';
+import { addHistoryStep, undo, redo } from './history.js?v=5';
+import { startAnalysisTimer } from './analysis.js?v=5';
+import { saveDocument } from './storage.js?v=5';
 
 /** Code longer than this is read after a longer pause. */
 const LONG_CODE = 200000;

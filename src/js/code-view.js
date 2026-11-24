@@ -6,7 +6,7 @@
 
 import { highlight, escapeHtml } from './datatree.js?v=13';
 import { state, ui, areas, FORMAT, NARROW_SCREEN, formatByteSize, getByteSize } from './state.js?v=2';
-import { updateHistoryUi } from './history.js?v=4';
+import { updateHistoryUi } from './history.js?v=5';
 
 /** The height of a code line in pixels. */
 const LINE_HEIGHT = 20;

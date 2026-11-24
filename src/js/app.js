@@ -22,7 +22,7 @@
  *   5. offer the test hook window.yamlEditor.
  */
 
-import { createI18n } from './i18n.js?v=23';
+import { createI18n } from './i18n.js?v=24';
 import { createWrap } from './wrap.js?v=5';
 import { createAiStatus } from './aistatus.js?v=9';
 import { createSync } from './sync.js?v=24';
@@ -35,31 +35,31 @@ import { store } from './files.js?v=8';
 import { createAi } from './ai.js?v=10';
 import { createMcp } from './mcp.js?v=5';
 import { state, ui, areas, FORMAT, showToast, translate } from './state.js?v=2';
-import { startCodeView, renderCode, syncScroll, showCodePosition } from './code-view.js?v=4';
-import { setCode, addHistoryStep, undo, redo } from './history.js?v=4';
-import { getSettings, startStorageSync } from './storage.js?v=4';
-import { updateAnalysis, renderTreeView } from './analysis.js?v=4';
-import { startProblems } from './problems.js?v=4';
-import { createTreeArea, editCodeFromTree } from './tree-panel.js?v=4';
-import { startTreeTools } from './tree-tools.js?v=4';
-import { renderValuePanel, startValuePanel } from './value-panel.js?v=4';
-import { renderInsertPanel, startInsertPanel } from './insert-panel.js?v=4';
-import { startCodeInput } from './code-input.js?v=4';
-import { startConversionPanel, getTidyCode, getConvertibleCode } from './conversion-panel.js?v=4';
-import { startSchemaPanel } from './schema-panel.js?v=4';
-import { startPanelTabs } from './panel-tabs.js?v=4';
-import { showFileName, openDocument, createDocumentsDialog, startDocumentButtons } from './documents.js?v=4';
-import { startFileImport } from './file-import.js?v=4';
-import { startKeyboard } from './keyboard.js?v=4';
-import { showSplit, startLayout, startDialogs } from './layout.js?v=4';
-import { startExportDialog } from './export-dialog.js?v=4';
-import { receiveDocument, importExternalDocument } from './incoming.js?v=4';
-import { startTemplateControls } from './template-panel.js?v=1';
+import { startCodeView, renderCode, syncScroll, showCodePosition } from './code-view.js?v=5';
+import { setCode, addHistoryStep, undo, redo } from './history.js?v=5';
+import { getSettings, startStorageSync } from './storage.js?v=5';
+import { updateAnalysis, renderTreeView } from './analysis.js?v=5';
+import { startProblems } from './problems.js?v=5';
+import { createTreeArea, editCodeFromTree } from './tree-panel.js?v=5';
+import { startTreeTools } from './tree-tools.js?v=5';
+import { renderValuePanel, startValuePanel } from './value-panel.js?v=5';
+import { renderInsertPanel, startInsertPanel } from './insert-panel.js?v=5';
+import { startCodeInput } from './code-input.js?v=5';
+import { startConversionPanel, getTidyCode, getConvertibleCode } from './conversion-panel.js?v=5';
+import { startSchemaPanel } from './schema-panel.js?v=5';
+import { startPanelTabs } from './panel-tabs.js?v=5';
+import { showFileName, openDocument, createDocumentsDialog, startDocumentButtons } from './documents.js?v=5';
+import { startFileImport } from './file-import.js?v=5';
+import { startKeyboard } from './keyboard.js?v=5';
+import { showSplit, startLayout, startDialogs } from './layout.js?v=5';
+import { startExportDialog } from './export-dialog.js?v=5';
+import { receiveDocument, importExternalDocument } from './incoming.js?v=5';
+import { startTemplateControls } from './template-panel.js?v=2';
 import { createTemplateExamples } from './template-examples.js?v=2';
 import { getViewMode, getTreeModel } from './tree-views.js?v=1';
 import {
     getPromptState, getProblemList, getAgentValue, setAgentValue, getFileList, openFileByName, createFile, updateCodeText, showLine,
-} from './agent-api.js?v=4';
+} from './agent-api.js?v=5';
 
 startEditor();
 

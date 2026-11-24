@@ -7,9 +7,9 @@
 
 import { state, ui, getElement } from './state.js?v=2';
 import { getActiveTemplateSyntax } from './datatree.js?v=13';
-import { setCodeRange } from './code-view.js?v=4';
-import { addHistoryStep, addPendingHistoryStep } from './history.js?v=4';
-import { renderTreeView } from './analysis.js?v=4';
+import { setCodeRange } from './code-view.js?v=5';
+import { addHistoryStep, addPendingHistoryStep } from './history.js?v=5';
+import { renderTreeView } from './analysis.js?v=5';
 import { startViewSwitch, showViewSwitch, showViewNote, createPlaceholderBox } from './template-controls.js?v=2';
 import { buildDocumentPlaceholders } from './template-examples.js?v=2';
 import { getViewMode, setViewMode, isExampleViewFailed, getTemplateExamples } from './tree-views.js?v=1';

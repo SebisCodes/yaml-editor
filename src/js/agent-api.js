@@ -7,12 +7,12 @@
 import { formatPath, getNodeAtPath, getPlainValue, parsePath, getAliasTarget } from './datatree.js?v=13';
 import { store } from './files.js?v=8';
 import { state, ui, areas } from './state.js?v=2';
-import { getLineIndex, getColumnIndex, getLineStart, showCodePosition } from './code-view.js?v=4';
-import { setCode } from './history.js?v=4';
-import { getSchema } from './analysis.js?v=4';
-import { editCodeFromTree } from './tree-panel.js?v=4';
-import { selectCursorNode } from './tree-tools.js?v=4';
-import { openDocument } from './documents.js?v=4';
+import { getLineIndex, getColumnIndex, getLineStart, showCodePosition } from './code-view.js?v=5';
+import { setCode } from './history.js?v=5';
+import { getSchema } from './analysis.js?v=5';
+import { editCodeFromTree } from './tree-panel.js?v=5';
+import { selectCursorNode } from './tree-tools.js?v=5';
+import { openDocument } from './documents.js?v=5';
 import { BLANK } from './samples.js?v=4';
 import { getTemplatePath } from './tree-views.js?v=1';
 

@@ -11,13 +11,13 @@
 import { parse, getModelValue, getSchemaProblems, TooManyValues } from './datatree.js?v=13';
 import { store } from './files.js?v=8';
 import { state, ui, areas, FORMAT, getElement } from './state.js?v=2';
-import { renderMarks } from './code-view.js?v=4';
-import { renderProblems } from './problems.js?v=4';
-import { renderValuePanel } from './value-panel.js?v=4';
-import { renderSchemaPanel } from './schema-panel.js?v=4';
-import { renderConvertResult } from './conversion-panel.js?v=4';
+import { renderMarks } from './code-view.js?v=5';
+import { renderProblems } from './problems.js?v=5';
+import { renderValuePanel } from './value-panel.js?v=5';
+import { renderSchemaPanel } from './schema-panel.js?v=5';
+import { renderConvertResult } from './conversion-panel.js?v=5';
 import { updateTreeView, getTreeModel } from './tree-views.js?v=1';
-import { renderTemplateControls } from './template-panel.js?v=1';
+import { renderTemplateControls } from './template-panel.js?v=2';
 
 /**
  * The schema chosen for the open document.

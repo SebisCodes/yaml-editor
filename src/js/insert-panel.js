@@ -5,9 +5,9 @@
 
 import { escapeHtml, getIndentUnit, getAliasTarget } from './datatree.js?v=13';
 import { state, ui, areas, showToast } from './state.js?v=2';
-import { setCodeRange } from './code-view.js?v=4';
-import { addHistoryStep } from './history.js?v=4';
-import { editCodeFromTree, CHOOSE_VALUE, SINGLE_ROOT } from './tree-panel.js?v=4';
+import { setCodeRange } from './code-view.js?v=5';
+import { addHistoryStep } from './history.js?v=5';
+import { editCodeFromTree, CHOOSE_VALUE, SINGLE_ROOT } from './tree-panel.js?v=5';
 
 /** The empty value of each type a button adds. */
 const NEW_VALUES = { string: '', number: 0, boolean: true, null: null, object: {}, array: [] };

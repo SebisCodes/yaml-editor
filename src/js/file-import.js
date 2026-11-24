@@ -7,8 +7,8 @@
 import { parse, importYamlLibrary, getModelValue } from './datatree.js?v=13';
 import { convertToYaml, convertFromJsonl, convertFromCsv, convertFromXml } from './convert.js?v=14';
 import { FORMAT, TYPING_FIELDS, showToast, getElement } from './state.js?v=2';
-import { setCode } from './history.js?v=4';
-import { createDocument } from './documents.js?v=4';
+import { setCode } from './history.js?v=5';
+import { createDocument } from './documents.js?v=5';
 
 /** The largest file that is opened, in bytes. */
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
